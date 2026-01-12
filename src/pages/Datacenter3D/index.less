@@ -1,0 +1,209 @@
+.card3d {
+    :global {
+        .ant-card-body {
+            padding: 0;
+        }
+    }
+}
+
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #fafafa;
+    border-bottom: 1px solid #f0f0f0;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.stats {
+    display: flex;
+    gap: 24px;
+    padding: 12px 16px;
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    flex-wrap: wrap;
+}
+
+.statItem {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #595959;
+    font-size: 13px;
+}
+
+.canvasContainer {
+    height: 600px;
+    background: linear-gradient(180deg, #e8eef5 0%, #d0dae5 50%, #c5d0dc 100%);
+    position: relative;
+}
+
+.loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    :global {
+        .ant-spin-text {
+            color: #333;
+        }
+    }
+}
+
+.hint {
+    padding: 8px 16px;
+    background: #f5f5f5;
+    color: #8c8c8c;
+    font-size: 12px;
+    text-align: center;
+}
+
+.deviceItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: #fafafa;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        background: #e6f7ff;
+    }
+}
+
+.connectionItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: #fafafa;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+/* U位图样式 */
+.uSlotDiagram {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 8px;
+    background: #f9f9f9;
+    border-radius: 6px;
+}
+
+.uSlot {
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 8px;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: default;
+    transition: all 0.2s;
+
+    &.occupied {
+        cursor: pointer;
+
+        &:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+    }
+}
+
+.uNumber {
+    width: 24px;
+    color: #8c8c8c;
+    font-family: monospace;
+    flex-shrink: 0;
+}
+
+.deviceName {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    color: #333;
+    padding-left: 8px;
+}
+
+/* 端口面板样式 */
+.portPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.portGroup {
+    background: #f9f9f9;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.portGroupHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #595959;
+}
+
+.portGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.port {
+    width: 20px;
+    height: 14px;
+    background: #3d3d3d;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+        transform: scale(1.2);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+}
+
+.portIndicator {
+    width: 4px;
+    height: 4px;
+    background: #52c41a;
+    border-radius: 50%;
+}
+
+/* 搜索结果高亮动画 */
+@keyframes highlight-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.5);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(82, 196, 26, 0);
+    }
+}
+
+.highlighted {
+    animation: highlight-pulse 1s ease-in-out infinite;
+}

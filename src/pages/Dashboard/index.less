@@ -1,0 +1,59 @@
+.statCard {
+  position: relative;
+  overflow: hidden;
+  
+  :global {
+    .ant-card-body {
+      padding: 20px 24px;
+    }
+    
+    .ant-statistic-title {
+      font-size: 14px;
+      color: #8c8c8c;
+      margin-bottom: 8px;
+    }
+    
+    .ant-statistic-content {
+      font-size: 28px;
+      font-weight: 600;
+    }
+  }
+}
+
+.statIcon {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.statusGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.statusItem {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.statusLabel {
+  flex: 1;
+  margin-left: 8px;
+  color: #595959;
+}
+
+.statusValue {
+  font-size: 24px;
+  font-weight: 600;
+}

@@ -220,6 +220,6 @@ front/
 
 **如果这个项目对您有帮助，请给我们一个 ⭐️ Star！**
 
-Made with ❤️ by [Your Name](https://github.com/go-laoji)
+Made with ❤️ by [go-laoji](https://github.com/go-laoji)
 
 </div>

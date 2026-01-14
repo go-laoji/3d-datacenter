@@ -586,7 +586,7 @@
     "@antv/g" "^6.1.24"
     "@antv/g-svg" "^2.0.38"
 
-"@antv/g6@^5.0.28", "@antv/g6@^5.0.44":
+"@antv/g6@^5.0.28", "@antv/g6@^5.0.44", "@antv/g6@^5.0.51":
   version "5.0.51"
   resolved "https://registry.npmmirror.com/@antv/g6/-/g6-5.0.51.tgz#b5085e27eca306af484a84ff13355b26672e0a66"
   integrity sha512-/88LJDZ7FHKtpyJibXOnJWZ8gFRp32mLb8KzEFrMuiIC/dsZgTf/oYVw6L4tLKooPXfXqUtrJb2tWFMGR04EMg==

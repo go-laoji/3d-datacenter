@@ -105,6 +105,39 @@ export default [
     ],
   },
   {
+    path: '/monitor',
+    name: '监控中心',
+    icon: 'monitor',
+    routes: [
+      {
+        path: '/monitor',
+        redirect: '/monitor/environment',
+      },
+      {
+        path: '/monitor/environment',
+        name: '环境监控',
+        component: './Environment',
+      },
+      {
+        path: '/monitor/alert',
+        name: '告警中心',
+        component: './AlertCenter',
+      },
+      {
+        path: '/monitor/alert/rules',
+        name: '告警规则',
+        component: './AlertCenter/AlertRules',
+        hideInMenu: true,
+      },
+      {
+        path: '/monitor/alert/history',
+        name: '告警历史',
+        component: './AlertCenter/AlertHistory',
+        hideInMenu: true,
+      },
+    ],
+  },
+  {
     path: '/admin',
     name: '系统管理',
     icon: 'crown',

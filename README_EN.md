@@ -27,11 +27,27 @@ English | [简体中文](./README.md)
 - **🌐 Network Topology** - Visualized network topology showing connections between devices
 - **📊 Resource Monitoring** - Real-time monitoring of U-space usage, device status, and other key metrics
 
+### 🌡️ Environment Monitoring & Energy Management (NEW)
+
+- **📈 Real-time Environment Monitoring** - Temperature and humidity monitoring with trend analysis
+- **⚡ Energy Management** - Power consumption statistics, PUE calculation, electricity cost analysis
+- **🔥 3D Heatmap** - Cabinet temperature heatmap overlay, visually displaying temperature distribution
+- **📉 Carbon Emission Statistics** - Carbon emission calculation and environmental metrics
+
+### 🔔 Alert Center (NEW)
+
+- **⚠️ Smart Alerts** - Multi-level alerts (Critical/Error/Warning/Info)
+- **📋 Alert Rules** - Customizable alert thresholds and trigger conditions
+- **📜 Alert History** - Complete alert records and processing traceability
+- **✅ Quick Acknowledgment** - One-click alert confirmation for efficient handling
+
 ### 🎨 3D Visualization Experience
 
 - **🖱️ Interactive Rotation** - Independent drag-to-rotate for cabinets and devices, multi-angle viewing
 - **🎯 Device Detail Display** - Click devices to view enlarged 3D models with front/rear panels and port distribution
 - **🎨 Status Visualization** - Different colors intuitively show device status (online/offline/warning)
+- **🔥 Temperature Heatmap** - Real-time temperature visualization with color mapping (Blue→Green→Yellow→Red)
+- **⚡ Alert Flashing** - Dynamic flashing effect for alert devices, quickly locate issues
 - **📏 Precise Positioning** - U-space ruler clearly marks device positions at a glance
 - **🌈 Realistic Lighting** - Physics-based rendering for near-realistic visual effects
 
@@ -49,8 +65,17 @@ English | [简体中文](./README.md)
 ### Dashboard
 ![Dashboard](./screenshots/dashboard.png)
 
+### Environment Monitoring
+![Environment Monitoring](./screenshots/environment.png)
+
+### Alert Center
+![Alert Center](./screenshots/alert-center.png)
+
 ### Data Center 3D View
 ![Data Center 3D View](./screenshots/datacenter-3d.png)
+
+### 3D Heatmap
+![3D Heatmap](./screenshots/heatmap-3d.png)
 
 ### Cabinet 3D View
 ![Cabinet 3D View](./screenshots/cabinet-3d.png)

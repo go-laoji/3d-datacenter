@@ -38,3 +38,5 @@ screenshot
 .firebase
 
 build
+# Feature suggestions (not to be committed)
+FEATURE_SUGGESTIONS.md

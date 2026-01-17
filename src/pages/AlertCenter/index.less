@@ -1,0 +1,210 @@
+.alertCenterPage {
+    :global {
+        .ant-card {
+            border-radius: 8px;
+        }
+    }
+}
+
+.statsRow {
+    margin-bottom: 16px;
+}
+
+.statCard {
+    text-align: center;
+
+    .statValue {
+        font-size: 36px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    .statLabel {
+        color: rgba(0, 0, 0, 0.45);
+        font-size: 14px;
+        margin-top: 4px;
+    }
+
+    .statIcon {
+        position: absolute;
+        right: 24px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 48px;
+        opacity: 0.15;
+    }
+
+    &.critical {
+        border-left: 4px solid #f5222d;
+
+        .statValue {
+            color: #f5222d;
+        }
+    }
+
+    &.error {
+        border-left: 4px solid #fa541c;
+
+        .statValue {
+            color: #fa541c;
+        }
+    }
+
+    &.warning {
+        border-left: 4px solid #faad14;
+
+        .statValue {
+            color: #faad14;
+        }
+    }
+
+    &.info {
+        border-left: 4px solid #1890ff;
+
+        .statValue {
+            color: #1890ff;
+        }
+    }
+}
+
+.alertList {
+    margin-top: 16px;
+}
+
+.alertItem {
+    padding: 16px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.3s;
+
+    &:hover {
+        background-color: #fafafa;
+    }
+
+    &:last-child {
+        border-bottom: none;
+    }
+
+    .alertHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .alertTitle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+        font-size: 15px;
+    }
+
+    .alertTime {
+        color: rgba(0, 0, 0, 0.45);
+        font-size: 12px;
+    }
+
+    .alertMessage {
+        color: rgba(0, 0, 0, 0.65);
+        margin-bottom: 8px;
+    }
+
+    .alertMeta {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        color: rgba(0, 0, 0, 0.45);
+        font-size: 12px;
+    }
+
+    .alertActions {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+    }
+}
+
+.levelCritical {
+    color: #f5222d;
+}
+
+.levelError {
+    color: #fa541c;
+}
+
+.levelWarning {
+    color: #faad14;
+}
+
+.levelInfo {
+    color: #1890ff;
+}
+
+.unacknowledged {
+    background-color: #fff7e6;
+
+    &:hover {
+        background-color: #fff1cc !important;
+    }
+}
+
+.filterBar {
+    margin-bottom: 16px;
+    padding: 16px;
+    background: #fafafa;
+    border-radius: 8px;
+}
+
+.ruleCard {
+    margin-top: 16px;
+}
+
+.ruleItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid #f0f0f0;
+
+    &:last-child {
+        border-bottom: none;
+    }
+
+    .ruleInfo {
+        flex: 1;
+
+        .ruleName {
+            font-weight: 500;
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+
+        .ruleCondition {
+            color: rgba(0, 0, 0, 0.45);
+            font-size: 13px;
+        }
+    }
+
+    .ruleActions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+}
+
+.historyTable {
+    margin-top: 16px;
+}
+
+.timelineItem {
+    .timelineContent {
+        .timelineTitle {
+            font-weight: 500;
+        }
+
+        .timelineDesc {
+            color: rgba(0, 0, 0, 0.45);
+            margin-top: 4px;
+        }
+    }
+}

@@ -1,0 +1,163 @@
+.environmentPage {
+    :global {
+        .ant-card {
+            border-radius: 8px;
+        }
+    }
+}
+
+.overviewCard {
+    .cardValue {
+        font-size: 32px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    .cardLabel {
+        color: rgba(0, 0, 0, 0.45);
+        font-size: 14px;
+        margin-top: 4px;
+    }
+
+    .statusIcon {
+        font-size: 48px;
+        opacity: 0.15;
+        position: absolute;
+        right: 24px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+}
+
+.statsRow {
+    margin-bottom: 16px;
+}
+
+.temperatureCard {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+
+    .ant-card-body {
+        position: relative;
+    }
+
+    .cardValue {
+        color: #fff;
+    }
+
+    .cardLabel {
+        color: rgba(255, 255, 255, 0.8);
+    }
+}
+
+.humidityCard {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: #fff;
+
+    .cardValue {
+        color: #fff;
+    }
+
+    .cardLabel {
+        color: rgba(255, 255, 255, 0.8);
+    }
+}
+
+.powerCard {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: #fff;
+
+    .cardValue {
+        color: #fff;
+    }
+
+    .cardLabel {
+        color: rgba(255, 255, 255, 0.8);
+    }
+}
+
+.pueCard {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: #fff;
+
+    .cardValue {
+        color: #fff;
+    }
+
+    .cardLabel {
+        color: rgba(255, 255, 255, 0.8);
+    }
+}
+
+.chartCard {
+    margin-top: 16px;
+
+    .ant-card-head {
+        border-bottom: 1px solid #f0f0f0;
+    }
+}
+
+.cabinetTable {
+    margin-top: 16px;
+
+    .statusNormal {
+        color: #52c41a;
+    }
+
+    .statusWarning {
+        color: #faad14;
+    }
+
+    .statusCritical {
+        color: #f5222d;
+    }
+}
+
+.energyStats {
+    margin-top: 16px;
+
+    .statItem {
+        text-align: center;
+        padding: 16px;
+
+        .statValue {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1890ff;
+        }
+
+        .statLabel {
+            color: rgba(0, 0, 0, 0.45);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .statCompare {
+            font-size: 12px;
+            margin-top: 4px;
+
+            &.positive {
+                color: #f5222d;
+            }
+
+            &.negative {
+                color: #52c41a;
+            }
+        }
+    }
+}
+
+.tempBar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .tempValue {
+        min-width: 50px;
+        font-weight: 500;
+    }
+
+    .tempProgress {
+        flex: 1;
+    }
+}

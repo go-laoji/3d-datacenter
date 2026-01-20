@@ -12,10 +12,46 @@ import {
   useMemo,
   useRef,
   useState,
+  useEffect,
 } from 'react';
 import * as THREE from 'three';
 import { Device3D } from './DeviceModels';
 import { HeatmapOverlay } from './HeatmapOverlay';
+import {
+  LODLevel,
+  calculateLODLevel,
+  LowDetailDevice,
+  MediumDetailDevice,
+  DEFAULT_LOD_THRESHOLDS,
+} from './LODManager';
+import {
+  getRecommendedConfig,
+  isWithinDistance,
+  DEFAULT_OPTIMIZATION_CONFIG,
+  type RenderOptimizationConfig,
+} from './performanceUtils';
+import {
+  getCachedMaterial,
+  getCachedBoxGeometry,
+  getCachedSphereGeometry,
+} from './TextureManager';
+import {
+  KeyboardController,
+  KeyboardControlsConfig,
+} from './KeyboardControls';
+import {
+  MeasurementManager,
+  BoxSelectDetector,
+  MeasurementLine,
+  ActiveTool,
+  createMeasurementLine,
+  MeasurementPoint,
+  MeasurementPointIndicator,
+  MeasurementController,
+  SelectionBox,
+} from './SelectionTools';
+import { InfoDensity } from './InfoDisplay';
+
 
 // 设备悬停Tooltip组件
 const DeviceTooltip: React.FC<{ device: IDC.Device; visible: boolean }> = ({
@@ -78,7 +114,16 @@ interface CabinetProps {
     device: IDC.Device,
     position: [number, number, number],
   ) => void;
+  // 性能优化配置
+  // 性能优化配置
+  lodEnabled?: boolean;
+  lodThresholds?: { high: number; medium: number; low: number };
+  // 信息密度
+  infoDensity?: InfoDensity;
+  // 框选区域
+  selectionBox?: SelectionBox | null;
 }
+
 
 // 单个机柜组件
 export const Cabinet3D: React.FC<CabinetProps> = ({
@@ -92,11 +137,19 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
   onDoubleClick,
   onDeviceSelect,
   onDeviceDoubleClick,
+  lodEnabled = true,
+  lodThresholds = DEFAULT_LOD_THRESHOLDS,
+  infoDensity = 'normal',
 }) => {
+
+  const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const [hoveredDevice, setHoveredDevice] = useState<IDC.Device | null>(null);
   const [flashIntensity, setFlashIntensity] = useState(0.8);
+  const [lodLevel, setLodLevel] = useState<LODLevel>(LODLevel.HIGH);
+  const frameCount = useRef(0);
+  const positionVec = useMemo(() => new THREE.Vector3(...position), [position]);
 
   // 机柜尺寸（按U位缩放）
   const cabinetHeight = cabinet.uHeight * 0.0445; // 1U = 44.5mm
@@ -119,10 +172,22 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
   // 告警闪烁效果
   const isWarning = cabinet.status === 'warning' || cabinet.status === 'error';
 
-  // 使用useFrame实现闪烁动画
+  // 使用useFrame实现LOD计算和闪烁动画
   useFrame(({ clock }) => {
+    // LOD 计算（每10帧更新一次，减少开销）
+    if (lodEnabled) {
+      frameCount.current++;
+      if (frameCount.current % 10 === 0) {
+        const distance = camera.position.distanceTo(positionVec);
+        const newLevel = calculateLODLevel(distance, lodThresholds);
+        if (newLevel !== lodLevel) {
+          setLodLevel(newLevel);
+        }
+      }
+    }
+
+    // 闪烁动画
     if (isWarning) {
-      // 使用正弦函数创建平滑的闪烁效果，频率根据告警级别调整
       const speed = cabinet.status === 'error' ? 4 : 2;
       const newIntensity = 0.8 + Math.sin(clock.getElapsedTime() * speed) * 0.7;
       setFlashIntensity(Math.max(0.3, Math.min(1.5, newIntensity)));
@@ -220,7 +285,7 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
         />
       </mesh>
 
-      {/* 使用新的3D设备模型渲染 */}
+      {/* 使用LOD优化的3D设备模型渲染 */}
       {devices.map((device) => {
         const deviceY =
           (device.startU - 1) * 0.0445 -
@@ -229,17 +294,67 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
         const deviceHeight = (device.endU - device.startU + 1) * 0.0445;
         const template = templates.find((t) => t.id === device.templateId);
         const category = template?.category || 'other';
+        const deviceWidth = cabinetWidth - 0.06;
+        const deviceDepth = 0.08;
+        const devicePosition: [number, number, number] = [0, deviceY, cabinetDepth / 2 - 0.05];
 
+        // 根据LOD级别选择不同精度的模型
+        if (lodEnabled && lodLevel === LODLevel.HIDDEN) {
+          return null; // 超远距离，不渲染
+        }
+
+        if (lodEnabled && lodLevel === LODLevel.LOW) {
+          // 低精度模型
+          return (
+            <LowDetailDevice
+              key={device.id}
+              position={devicePosition}
+              width={deviceWidth}
+              height={deviceHeight - 0.005}
+              depth={deviceDepth}
+              color={category === 'server' ? '#5c6b7a' : category === 'switch' ? '#2d5a7b' : '#6b7b8c'}
+              status={device.status}
+              onClick={(e) => {
+                e.stopPropagation();
+                setHoveredDevice(device);
+                onDeviceSelect(device);
+              }}
+            />
+          );
+        }
+
+        if (lodEnabled && lodLevel === LODLevel.MEDIUM) {
+          // 中等精度模型
+          return (
+            <MediumDetailDevice
+              key={device.id}
+              position={devicePosition}
+              width={deviceWidth}
+              height={deviceHeight - 0.005}
+              depth={deviceDepth}
+              color={category === 'server' ? '#5c6b7a' : category === 'switch' ? '#2d5a7b' : '#6b7b8c'}
+              panelColor="#222"
+              status={device.status}
+              onClick={(e) => {
+                e.stopPropagation();
+                setHoveredDevice(device);
+                onDeviceSelect(device);
+              }}
+            />
+          );
+        }
+
+        // 高精度模型（原始完整模型）
         return (
           <Device3D
             key={device.id}
             device={device}
             template={template}
             category={category}
-            position={[0, deviceY, cabinetDepth / 2 - 0.05]}
+            position={devicePosition}
             height={deviceHeight - 0.005}
-            width={cabinetWidth - 0.06}
-            depth={0.08}
+            width={deviceWidth}
+            depth={deviceDepth}
             selected={hoveredDevice?.id === device.id}
             onSelect={(d) => {
               setHoveredDevice(d);
@@ -257,30 +372,46 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
         );
       })}
 
-      {/* 机柜标签 */}
+      {/* 机柜标签 - 根据信息密度显示不同内容 */}
       <Html
         position={[0, cabinetHeight / 2 + 0.1, cabinetDepth / 2]}
         center
         distanceFactor={8}
+        zIndexRange={[100, 0]}
       >
         <div
           style={{
-            background: selected
-              ? '#1890ff'
-              : highlighted
-                ? '#52c41a'
-                : 'rgba(0,0,0,0.7)',
-            color: '#fff',
-            padding: '2px 8px',
-            borderRadius: 4,
-            fontSize: 12,
+            background: 'rgba(255, 255, 255, 0.9)',
+            padding: infoDensity === 'compact' ? '2px 6px' : '4px 8px',
+            borderRadius: '4px',
+            border: `1px solid ${statusColors[cabinet.status] || '#d9d9d9'}`,
+            fontSize: '12px',
             whiteSpace: 'nowrap',
-            fontFamily: 'system-ui',
+            color: '#333',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
           }}
         >
-          {cabinet.name}
+          <div style={{ fontWeight: 'bold' }}>{cabinet.name}</div>
+
+          {infoDensity !== 'compact' && (
+            <div style={{ fontSize: '10px', color: '#666' }}>{cabinet.code}</div>
+          )}
+
+          {infoDensity === 'detailed' && (
+            <div style={{ fontSize: '10px', display: 'flex', gap: '4px' }}>
+              <span>使用率: {Math.round(cabinet.usedU / cabinet.uHeight * 100)}%</span>
+              <span style={{ color: statusColors[cabinet.status] }}>
+                {cabinet.status === 'normal' ? '正常' : '异常'}
+              </span>
+            </div>
+          )}
         </div>
       </Html>
+
     </group>
   );
 };
@@ -348,7 +479,20 @@ interface DatacenterSceneProps {
   // 热力图相关属性
   showHeatmap?: boolean;
   cabinetTemperatures?: CabinetTemperature[];
+  // 性能优化配置
+  optimizationConfig?: RenderOptimizationConfig;
+
+  // 交互配置
+  activeTool?: ActiveTool;
+  measurements?: MeasurementLine[];
+  onMeasurementsChange?: (measurements: MeasurementLine[]) => void;
+  selectedDeviceIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  infoDensity?: InfoDensity;
+  // 框选区域
+  selectionBox?: SelectionBox | null;
 }
+
 
 // 数据中心3D场景
 export const DatacenterScene = forwardRef<
@@ -369,12 +513,55 @@ export const DatacenterScene = forwardRef<
       onSelectDevice,
       showHeatmap = false,
       cabinetTemperatures = [],
+      optimizationConfig,
+      activeTool,
+      measurements,
+      onMeasurementsChange,
+      selectedDeviceIds,
+      onSelectionChange,
+      infoDensity,
+      selectionBox,
     },
     ref,
   ) => {
+    const { camera, gl } = useThree();
     const [cameraTarget, setCameraTarget] = useState<
       [number, number, number] | null
     >(null);
+
+
+
+    // 测量工具状态
+    const [pendingMeasurementPoint, setPendingMeasurementPoint] = useState<MeasurementPoint | null>(null);
+
+    const handleAddMeasurementPoint = useCallback((position: [number, number, number]) => {
+      const point: MeasurementPoint = {
+        id: `p-${Date.now()}`,
+        position,
+      };
+
+      if (!pendingMeasurementPoint) {
+        setPendingMeasurementPoint(point);
+      } else {
+        // Create line and call onChange
+        const newLine = createMeasurementLine(pendingMeasurementPoint, point);
+        onMeasurementsChange?.([...(measurements || []), newLine]);
+        setPendingMeasurementPoint(null);
+      }
+    }, [pendingMeasurementPoint, measurements, onMeasurementsChange]);
+
+    // 清除未完成的测量点当工具切换时
+    useEffect(() => {
+      if (activeTool !== 'measure') {
+        setPendingMeasurementPoint(null);
+      }
+    }, [activeTool]);
+
+    // 根据设备数量计算推荐的优化配置
+    const effectiveConfig = useMemo(() => {
+      if (optimizationConfig) return optimizationConfig;
+      return getRecommendedConfig(devices.length);
+    }, [optimizationConfig, devices.length]);
 
     // 计算机柜位置
     const cabinetPositions = useMemo(() => {
@@ -424,6 +611,10 @@ export const DatacenterScene = forwardRef<
 
     return (
       <>
+        {/* 背景和氛围 - 恢复明亮风格 */}
+        {/* 不需要color background，让Canvas透明透出父容器颜色或默认白色/浅灰 */}
+        {/* <color attach="background" args={['#d0d8e0']} /> */}
+
         {/* 相机 */}
         <PerspectiveCamera makeDefault position={[8, 6, 8]} fov={50} />
 
@@ -433,42 +624,42 @@ export const DatacenterScene = forwardRef<
           onAnimationComplete={() => setCameraTarget(null)}
         />
 
-        {/* 环境光 - 增强亮度 */}
-        <ambientLight intensity={0.8} />
-        <directionalLight position={[10, 15, 10]} intensity={1.2} castShadow />
-        <pointLight position={[-10, 10, -10]} intensity={0.6} />
-        <pointLight position={[10, 5, 10]} intensity={0.4} color="#e0e7ff" />
+        {/* 灯光 - 明亮风格 */}
+        <ambientLight intensity={0.7} />
+        <directionalLight
+          position={[10, 20, 10]}
+          intensity={1.0}
+          castShadow
+          shadow-mapSize={[2048, 2048]}
+        >
+          <orthographicCamera attach="shadow-camera" args={[-30, 30, 30, -30]} />
+        </directionalLight>
+        <hemisphereLight intensity={0.4} groundColor="#ffffff" color="#ffffff" />
 
         {/* 地板网格 */}
         <Grid
-          args={[20, 20]}
-          cellSize={0.5}
-          cellThickness={0.5}
-          cellColor="#8899aa"
-          sectionSize={2}
-          sectionThickness={1}
-          sectionColor="#667788"
-          fadeDistance={30}
+          renderOrder={-1}
+          position={[0, -0.01, 0]}
+          infiniteGrid
+          cellSize={1}
+          sectionSize={5}
+          fadeDistance={50}
           fadeStrength={1}
-          followCamera={false}
-          position={[4, 0, 4]}
+          cellColor="#d9d9d9"
+          sectionColor="#bfbfbf"
         />
 
-        {/* 地板 */}
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[4, -0.01, 4]}
-          receiveShadow
-        >
-          <planeGeometry args={[20, 20]} />
+        {/* 地面 - 浅灰色 */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
+          <planeGeometry args={[100, 100]} />
           <meshStandardMaterial
-            color="#d0d8e0"
+            color="#f0f2f5"
             metalness={0.1}
-            roughness={0.9}
+            roughness={0.8}
           />
         </mesh>
 
-        {/* 渲染机柜 */}
+        {/* 渲染机柜 - 使用性能优化配置 */}
         {cabinets.map((cabinet) => (
           <Cabinet3D
             key={cabinet.id}
@@ -487,8 +678,64 @@ export const DatacenterScene = forwardRef<
             onDoubleClick={handleCabinetDoubleClick}
             onDeviceSelect={onSelectDevice}
             onDeviceDoubleClick={handleDeviceDoubleClick}
+            lodEnabled={effectiveConfig.enableLOD}
+            lodThresholds={effectiveConfig.lodThresholds}
+            infoDensity={infoDensity}
           />
+
         ))}
+
+        {/* 交互工具 */}
+        <KeyboardController
+          onResetView={() => setCameraTarget([4, 1, 4])}
+          onEscape={() => {
+            onSelectCabinet(null);
+            onSelectDevice(null);
+            onSelectionChange?.([]);
+            setPendingMeasurementPoint(null);
+          }}
+        />
+
+        {measurements && onMeasurementsChange && (
+          <MeasurementManager
+            measurements={measurements}
+            onRemove={(id) => {
+              onMeasurementsChange(measurements.filter(m => m.id !== id));
+            }}
+          />
+        )}
+
+        {/* 测量交互控制器 */}
+        <MeasurementController
+          enabled={activeTool === 'measure'}
+          onAddPoint={handleAddMeasurementPoint}
+        />
+
+        {/* 未完成的测量点提示 */}
+        {pendingMeasurementPoint && (
+          <MeasurementPointIndicator point={pendingMeasurementPoint} />
+        )}
+
+        {/* 框选检测器 */}
+        <BoxSelectDetector
+          enabled={activeTool === 'boxSelect'}
+          selectionBox={selectionBox || null}
+          devicePositions={
+            devices.reduce((acc, dev) => {
+              // 计算设备的世界坐标（简化版，实际应从 matrixWorld 获取或计算）
+              // 这里仅作示意，实际需要精确坐标
+              const cab = cabinets.find(c => c.id === dev.cabinetId);
+              if (cab && cabinetPositions[cab.id]) {
+                const [cx, cy, cz] = cabinetPositions[cab.id];
+                // 假设设备在机柜内的相对位置
+                acc[dev.id] = [cx, cy + (dev as any).position * 0.0445, cz + 0.3];
+              }
+              return acc;
+            }, {} as Record<string, [number, number, number]>)
+          }
+          onSelectionComplete={(ids) => onSelectionChange?.(ids)}
+        />
+
 
         {/* 热力图叠加层 */}
         <HeatmapOverlay

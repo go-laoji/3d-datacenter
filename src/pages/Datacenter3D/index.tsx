@@ -31,7 +31,7 @@ import {
   Settings,
   Thermometer,
 } from 'lucide-react';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 // 机柜详情现在通过页面跳转到 Cabinet3D 页面展示，不再使用 Modal 组件
 import {
   DatacenterScene,
@@ -41,10 +41,28 @@ import { HeatmapLegend } from '@/components/3d/HeatmapOverlay';
 import { getCabinetsByDatacenter } from '@/services/idc/cabinet';
 import { getConnectionsByDatacenter } from '@/services/idc/connection';
 import { getAllDatacenters } from '@/services/idc/datacenter';
+import {
+  SelectionToolbar,
+  BatchOperationPanel,
+  MeasurementManager,
+  BatchOperation,
+  ActiveTool,
+  MeasurementLine,
+  createMeasurementLine,
+  BoxSelectOverlay,
+  type SelectionBox,
+} from '@/components/3d/SelectionTools';
+import {
+  EnhancedSearch,
+  InfoDensityControl,
+  InfoDensity,
+} from '@/components/3d/InfoDisplay';
+import { useBatchLoader, usePolling } from '@/utils/DataLoader';
 import { getDevices } from '@/services/idc/device';
 import { getAllDeviceTemplates } from '@/services/idc/deviceTemplate';
 import { getCabinetEnvironments } from '@/services/idc/environment';
 import styles from './index.less';
+
 
 // U位图组件
 const USlotDiagram: React.FC<{
@@ -203,30 +221,85 @@ const Datacenter3DPage: React.FC = () => {
     });
   }, []);
 
-  // 加载选中数据中心的数据
+  // 设备加载器适配器
+  const fetchDevices = useCallback(
+    async (page: number, pageSize: number) => {
+      if (!selectedDc) return { data: [], total: 0 };
+      // 获取当前数据中心的所有机柜ID（需要先获取机柜）
+      // 由于API限制，这里我们假设后端支持通过 datacenterId 获取设备
+      // 或者我们需要先获取机柜，然后筛选。
+      // 为了性能，我们仍然使用之前的逻辑：获取所有设备然后前端筛选（分批加载）
+      // 注意：实际生产中应该有 getDevicesByDatacenter 接口
+      const res = await getDevices({ current: page, pageSize });
+      return {
+        data: res.data || [],
+        total: res.total || 0,
+      };
+    },
+    [selectedDc],
+  );
+
+  // 使用分批加载器
+  const {
+    data: allDevices,
+    loading: devicesLoading,
+    progress: loadProgress,
+    reload: reloadDevices,
+  } = useBatchLoader<IDC.Device>({
+    fetcher: fetchDevices,
+    pageSize: 100,
+    enabled: !!selectedDc,
+    cacheKey: selectedDc ? `devices_${selectedDc}` : undefined,
+  });
+
+
+  // 筛选当前数据中心的设备
+  const currentDcDevices = useMemo(() => {
+    if (!cabinets.length || !allDevices.length) return [];
+    const cabinetIds = cabinets.map((c) => c.id);
+    return allDevices.filter((d) => cabinetIds.includes(d.cabinetId));
+  }, [cabinets, allDevices]);
+
+  // 更新设备状态
+  useEffect(() => {
+    setDevices(currentDcDevices);
+  }, [currentDcDevices]);
+
+  // 工具状态
+  const [activeTool, setActiveTool] = useState<ActiveTool>(null);
+  const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
+  const [measurements, setMeasurements] = useState<MeasurementLine[]>([]);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
+  const [infoDensity, setInfoDensity] = useState<InfoDensity>('normal');
+
+  // 加载选中数据中心的数据 (不包括设备，设备由 BatchLoader 处理)
   useEffect(() => {
     if (selectedDc) {
       setLoading(true);
       Promise.all([
         getCabinetsByDatacenter(selectedDc),
-        getDevices({ pageSize: 1000 }),
         getConnectionsByDatacenter(selectedDc),
       ])
-        .then(([cabRes, devRes, connRes]) => {
+        .then(([cabRes, connRes]) => {
           if (cabRes.success) setCabinets(cabRes.data || []);
-          if (devRes.success) {
-            const cabinetIds = (cabRes.data || []).map((c: any) => c.id);
-            setDevices(
-              (devRes.data || []).filter((d: any) =>
-                cabinetIds.includes(d.cabinetId),
-              ),
-            );
-          }
           if (connRes.success) setConnections(connRes.data || []);
         })
         .finally(() => setLoading(false));
     }
   }, [selectedDc]);
+
+  // 模拟并行的设备状态轮询更新 (每30秒)
+  usePolling(
+    async () => {
+      // 实际应该调用 getDeviceStatus 接口
+      return null;
+    },
+    () => {
+      // 更新状态逻辑
+      // console.log('Polling device status...');
+    },
+    { interval: 30000 },
+  );
 
   // 加载热力图温度数据
   useEffect(() => {
@@ -445,25 +518,7 @@ const Datacenter3DPage: React.FC = () => {
             </div>
           ) : cabinets.length > 0 ? (
             <>
-              <Canvas shadows>
-                <Suspense fallback={null}>
-                  <DatacenterScene
-                    ref={sceneRef}
-                    cabinets={cabinets}
-                    devices={devices}
-                    connections={showConnections ? connections : []}
-                    templates={templates}
-                    selectedCabinet={selectedCabinet}
-                    selectedDevice={selectedDevice}
-                    highlightedCabinetId={highlightedCabinetId}
-                    highlightedDeviceId={highlightedDeviceId}
-                    onSelectCabinet={handleSelectCabinet}
-                    onSelectDevice={handleSelectDevice}
-                    showHeatmap={showHeatmap}
-                    cabinetTemperatures={cabinetTemperatures}
-                  />
-                </Suspense>
-              </Canvas>
+
               {/* 热力图图例 */}
               {showHeatmap && (
                 <div
@@ -477,6 +532,123 @@ const Datacenter3DPage: React.FC = () => {
                   <HeatmapLegend />
                 </div>
               )}
+              {/* 顶部工具栏 */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 16,
+                  left: 16,
+                  zIndex: 10,
+                  width: 320,
+                  pointerEvents: 'none', // 允许点击穿透
+                }}
+              >
+
+
+                <div style={{ pointerEvents: 'auto' }}>
+                  <InfoDensityControl
+                    density={infoDensity}
+                    onChange={setInfoDensity}
+                  />
+                </div>
+              </div>
+
+              {/* 框选遮罩层 */}
+              <BoxSelectOverlay
+                enabled={activeTool === 'boxSelect'}
+                onSelectionBox={setSelectionBox}
+              />
+
+              {/* 右侧工具栏 */}
+              <SelectionToolbar
+                activeTool={activeTool}
+                onToolChange={setActiveTool}
+                measurementCount={measurements.length}
+                onClearMeasurements={() => setMeasurements([])}
+              />
+
+              {/* 批量操作面板 */}
+              {selectedDeviceIds.length > 0 && (
+                <BatchOperationPanel
+                  selectedIds={selectedDeviceIds}
+                  onOperation={(op) => {
+                    message.info(`执行批量操作: ${op.type} (${op.targetIds.length}个设备)`);
+                    // 这里实现实际的批量操作逻辑
+                  }}
+                  onClearSelection={() => setSelectedDeviceIds([])}
+                />
+              )}
+
+              {/* 加载进度条 */}
+              {devicesLoading && loadProgress < 100 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 3,
+                    background: 'rgba(0,0,0,0.1)',
+                    zIndex: 20,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${loadProgress}%`,
+                      height: '100%',
+                      background: '#1890ff',
+                      transition: 'width 0.3s',
+                    }}
+                  />
+                </div>
+              )}
+
+              <Canvas
+                shadows
+                dpr={[1, 2]}
+                camera={{ position: [8, 8, 8], fov: 45 }}
+                // style={{ background: '#1f1f1f' }} 移除内联样式，交由 Scene 内部控制
+                style={{ height: '100%', width: '100%' }}
+              >
+                <Suspense fallback={null}>
+                  <DatacenterScene
+                    ref={sceneRef}
+                    cabinets={cabinets}
+                    devices={devices}
+                    templates={templates}
+                    selectedCabinet={selectedCabinet}
+                    selectedDevice={selectedDevice}
+                    connections={showConnections ? connections : []}
+                    showHeatmap={showHeatmap}
+                    cabinetTemperatures={cabinetTemperatures}
+                    onSelectCabinet={handleSelectCabinet}
+                    onSelectDevice={handleSelectDevice}
+                    highlightedDeviceId={highlightedDeviceId}
+                    highlightedCabinetId={highlightedCabinetId}
+
+                    // 性能配置
+                    optimizationConfig={{
+                      enableLOD: true,
+                      enableInstancing: true,
+                      lodThresholds: { high: 3, medium: 8, low: 15 },
+                      enableFrustumCulling: true,
+                      enableOcclusionCulling: true,
+                      maxVisibleDevices: 1000,
+                      updateFrequency: 100,
+                    }}
+
+                    // 交互配置
+                    activeTool={activeTool}
+                    measurements={measurements}
+                    onMeasurementsChange={setMeasurements}
+                    selectedDeviceIds={selectedDeviceIds}
+                    selectionBox={selectionBox}
+                    onSelectionChange={setSelectedDeviceIds}
+                    infoDensity={infoDensity}
+
+                  />
+                </Suspense>
+              </Canvas>
             </>
           ) : (
             <Empty

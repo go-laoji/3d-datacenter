@@ -32,7 +32,7 @@ import {
   Thermometer,
 } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import CabinetFrontView3D from '@/components/3d/CabinetFrontView3D';
+// 机柜详情现在通过页面跳转到 Cabinet3D 页面展示，不再使用 Modal 组件
 import {
   DatacenterScene,
   type DatacenterSceneRef,
@@ -81,9 +81,9 @@ const USlotDiagram: React.FC<{
           style={
             device
               ? {
-                  backgroundColor: `${statusColors[device.status]}20`,
-                  borderColor: statusColors[device.status],
-                }
+                backgroundColor: `${statusColors[device.status]}20`,
+                borderColor: statusColors[device.status],
+              }
               : {}
           }
           onClick={() => device && onDeviceClick(device)}
@@ -157,7 +157,7 @@ const Datacenter3DPage: React.FC = () => {
   const [selectedDevice, setSelectedDevice] = useState<IDC.Device | null>(null);
   const [cabinetDrawerOpen, setCabinetDrawerOpen] = useState(false);
   const [deviceDrawerOpen, setDeviceDrawerOpen] = useState(false);
-  const [cabinetFrontViewOpen, setCabinetFrontViewOpen] = useState(false);
+
 
   const [showConnections, setShowConnections] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
@@ -278,10 +278,8 @@ const Datacenter3DPage: React.FC = () => {
     setSelectedCabinet(cabinet);
     setSelectedDevice(null);
     if (cabinet) {
-      // 点击机柜显示正面大图
-      setCabinetFrontViewOpen(true);
-      setDeviceDrawerOpen(false);
-      setCabinetDrawerOpen(false);
+      // 点击机柜跳转到 Cabinet3D 页面，实现组件复用和展示一致性
+      history.push(`/cabinet3d?id=${cabinet.id}`);
     }
   };
 
@@ -439,16 +437,9 @@ const Datacenter3DPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 3D画布 - 打开机柜正面图时隐藏 */}
+        {/* 3D画布 */}
         <div className={styles.canvasContainer}>
-          {cabinetFrontViewOpen ? (
-            <div className={styles.loading}>
-              <div style={{ textAlign: 'center', color: '#666' }}>
-                <Server size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
-                <div>正在查看机柜详情...</div>
-              </div>
-            </div>
-          ) : loading ? (
+          {loading ? (
             <div className={styles.loading}>
               <Spin size="large" tip="加载3D场景..." />
             </div>
@@ -552,7 +543,7 @@ const Datacenter3DPage: React.FC = () => {
                     percent={Math.round(
                       (selectedCabinet.currentPower /
                         selectedCabinet.maxPower) *
-                        100,
+                      100,
                     )}
                     size="small"
                     strokeColor="#faad14"
@@ -696,11 +687,11 @@ const Datacenter3DPage: React.FC = () => {
                   c.sourceDeviceId === selectedDevice.id ||
                   c.targetDeviceId === selectedDevice.id,
               ).length === 0 && (
-                <Empty
-                  description="暂无连线"
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                />
-              )}
+                  <Empty
+                    description="暂无连线"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  />
+                )}
             </Card>
 
             <div style={{ marginTop: 16 }}>
@@ -738,18 +729,7 @@ const Datacenter3DPage: React.FC = () => {
         )}
       </Drawer>
 
-      {/* 机柜正面大图视图 - 3D版本 */}
-      <CabinetFrontView3D
-        cabinet={selectedCabinet}
-        devices={getCabinetDevices(selectedCabinet?.id || '')}
-        templates={templates}
-        open={cabinetFrontViewOpen}
-        onClose={() => setCabinetFrontViewOpen(false)}
-        onDeviceClick={(device) => {
-          setCabinetFrontViewOpen(false);
-          handleSelectDevice(device);
-        }}
-      />
+
     </PageContainer>
   );
 };

@@ -1,6 +1,6 @@
 export default {
   'pages.layouts.userLayout.title':
-    'Ant Design 是西湖区最具影响力的 Web 设计规范',
+    'AI 结对编程匠心之作，定义 3D 可视化运维新标准',
   'pages.login.accountLogin.tab': '账户密码登录',
   'pages.login.accountLogin.errorMessage':
     '错误的用户名和密码(admin/ant.design)',

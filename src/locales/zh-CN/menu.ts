@@ -58,6 +58,7 @@ export default {
   'menu.idc.cabinet': '机柜管理',
   'menu.idc.device': '设备管理',
   'menu.idc.template': '设备模板',
+  'menu.idc.pdu': 'PDU设备',
   'menu.network': '网络管理',
   'menu.network.connection': '连线管理',
   'menu.network.port': '端口配置',
@@ -67,4 +68,5 @@ export default {
   'menu.monitor.alert': '告警中心',
   'menu.monitor.alert.rules': '告警规则',
   'menu.monitor.alert.history': '告警历史',
+  'menu.power': '电源管理',
 };

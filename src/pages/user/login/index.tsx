@@ -64,7 +64,7 @@ const useStyles = createStyles(({ token }) => {
   };
 });
 
-const ActionIcons = () => {
+const _ActionIcons = () => {
   const { styles } = useStyles();
 
   return (

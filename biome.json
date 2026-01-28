@@ -27,15 +27,29 @@
     "rules": {
       "recommended": true,
       "suspicious": {
-        "noExplicitAny": "off"
+        "noExplicitAny": "off",
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "warn",
+        "useIterableCallbackReturn": "warn"
       },
       "correctness": {
-        "useExhaustiveDependencies": "off"
+        "useExhaustiveDependencies": "off",
+        "noUnusedVariables": "warn",
+        "noUnusedFunctionParameters": "warn"
       },
       "a11y": {
         "noStaticElementInteractions": "off",
         "useValidAnchor": "off",
-        "useKeyWithClickEvents": "off"
+        "useKeyWithClickEvents": "off",
+        "useButtonType": "warn",
+        "useKeyWithMouseEvents": "warn",
+        "noSvgWithoutTitle": "warn"
+      },
+      "complexity": {
+        "noUselessSwitchCase": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "warn"
       }
     }
   },

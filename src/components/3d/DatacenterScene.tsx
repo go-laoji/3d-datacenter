@@ -8,53 +8,42 @@ import { useFrame, useThree } from '@react-three/fiber';
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
-  useEffect,
 } from 'react';
 import * as THREE from 'three';
 import { Device3D } from './DeviceModels';
 import { HeatmapOverlay } from './HeatmapOverlay';
+import type { InfoDensity } from './InfoDisplay';
+import { KeyboardController } from './KeyboardControls';
 import {
-  LODLevel,
   calculateLODLevel,
+  DEFAULT_LOD_THRESHOLDS,
+  LODLevel,
   LowDetailDevice,
   MediumDetailDevice,
-  DEFAULT_LOD_THRESHOLDS,
 } from './LODManager';
 import {
   getRecommendedConfig,
-  isWithinDistance,
-  DEFAULT_OPTIMIZATION_CONFIG,
   type RenderOptimizationConfig,
 } from './performanceUtils';
 import {
-  getCachedMaterial,
-  getCachedBoxGeometry,
-  getCachedSphereGeometry,
-} from './TextureManager';
-import {
-  KeyboardController,
-  KeyboardControlsConfig,
-} from './KeyboardControls';
-import {
-  MeasurementManager,
+  type ActiveTool,
   BoxSelectDetector,
-  MeasurementLine,
-  ActiveTool,
   createMeasurementLine,
-  MeasurementPoint,
-  MeasurementPointIndicator,
   MeasurementController,
-  SelectionBox,
+  type MeasurementLine,
+  MeasurementManager,
+  type MeasurementPoint,
+  MeasurementPointIndicator,
+  type SelectionBox,
 } from './SelectionTools';
-import { InfoDensity } from './InfoDisplay';
-
 
 // 设备悬停Tooltip组件
-const DeviceTooltip: React.FC<{ device: IDC.Device; visible: boolean }> = ({
+const _DeviceTooltip: React.FC<{ device: IDC.Device; visible: boolean }> = ({
   device,
   visible,
 }) => {
@@ -124,7 +113,6 @@ interface CabinetProps {
   selectionBox?: SelectionBox | null;
 }
 
-
 // 单个机柜组件
 export const Cabinet3D: React.FC<CabinetProps> = ({
   cabinet,
@@ -141,7 +129,6 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
   lodThresholds = DEFAULT_LOD_THRESHOLDS,
   infoDensity = 'normal',
 }) => {
-
   const { camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
@@ -296,7 +283,11 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
         const category = template?.category || 'other';
         const deviceWidth = cabinetWidth - 0.06;
         const deviceDepth = 0.08;
-        const devicePosition: [number, number, number] = [0, deviceY, cabinetDepth / 2 - 0.05];
+        const devicePosition: [number, number, number] = [
+          0,
+          deviceY,
+          cabinetDepth / 2 - 0.05,
+        ];
 
         // 根据LOD级别选择不同精度的模型
         if (lodEnabled && lodLevel === LODLevel.HIDDEN) {
@@ -312,7 +303,13 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
               width={deviceWidth}
               height={deviceHeight - 0.005}
               depth={deviceDepth}
-              color={category === 'server' ? '#5c6b7a' : category === 'switch' ? '#2d5a7b' : '#6b7b8c'}
+              color={
+                category === 'server'
+                  ? '#5c6b7a'
+                  : category === 'switch'
+                    ? '#2d5a7b'
+                    : '#6b7b8c'
+              }
               status={device.status}
               onClick={(e) => {
                 e.stopPropagation();
@@ -332,7 +329,13 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
               width={deviceWidth}
               height={deviceHeight - 0.005}
               depth={deviceDepth}
-              color={category === 'server' ? '#5c6b7a' : category === 'switch' ? '#2d5a7b' : '#6b7b8c'}
+              color={
+                category === 'server'
+                  ? '#5c6b7a'
+                  : category === 'switch'
+                    ? '#2d5a7b'
+                    : '#6b7b8c'
+              }
               panelColor="#222"
               status={device.status}
               onClick={(e) => {
@@ -398,12 +401,16 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
           <div style={{ fontWeight: 'bold' }}>{cabinet.name}</div>
 
           {infoDensity !== 'compact' && (
-            <div style={{ fontSize: '10px', color: '#666' }}>{cabinet.code}</div>
+            <div style={{ fontSize: '10px', color: '#666' }}>
+              {cabinet.code}
+            </div>
           )}
 
           {infoDensity === 'detailed' && (
             <div style={{ fontSize: '10px', display: 'flex', gap: '4px' }}>
-              <span>使用率: {Math.round(cabinet.usedU / cabinet.uHeight * 100)}%</span>
+              <span>
+                使用率: {Math.round((cabinet.usedU / cabinet.uHeight) * 100)}%
+              </span>
               <span style={{ color: statusColors[cabinet.status] }}>
                 {cabinet.status === 'normal' ? '正常' : '异常'}
               </span>
@@ -411,7 +418,6 @@ export const Cabinet3D: React.FC<CabinetProps> = ({
           )}
         </div>
       </Html>
-
     </group>
   );
 };
@@ -493,7 +499,6 @@ interface DatacenterSceneProps {
   selectionBox?: SelectionBox | null;
 }
 
-
 // 数据中心3D场景
 export const DatacenterScene = forwardRef<
   DatacenterSceneRef,
@@ -524,31 +529,33 @@ export const DatacenterScene = forwardRef<
     },
     ref,
   ) => {
-    const { camera, gl } = useThree();
+    const { camera } = useThree();
     const [cameraTarget, setCameraTarget] = useState<
       [number, number, number] | null
     >(null);
 
-
-
     // 测量工具状态
-    const [pendingMeasurementPoint, setPendingMeasurementPoint] = useState<MeasurementPoint | null>(null);
+    const [pendingMeasurementPoint, setPendingMeasurementPoint] =
+      useState<MeasurementPoint | null>(null);
 
-    const handleAddMeasurementPoint = useCallback((position: [number, number, number]) => {
-      const point: MeasurementPoint = {
-        id: `p-${Date.now()}`,
-        position,
-      };
+    const handleAddMeasurementPoint = useCallback(
+      (position: [number, number, number]) => {
+        const point: MeasurementPoint = {
+          id: `p-${Date.now()}`,
+          position,
+        };
 
-      if (!pendingMeasurementPoint) {
-        setPendingMeasurementPoint(point);
-      } else {
-        // Create line and call onChange
-        const newLine = createMeasurementLine(pendingMeasurementPoint, point);
-        onMeasurementsChange?.([...(measurements || []), newLine]);
-        setPendingMeasurementPoint(null);
-      }
-    }, [pendingMeasurementPoint, measurements, onMeasurementsChange]);
+        if (!pendingMeasurementPoint) {
+          setPendingMeasurementPoint(point);
+        } else {
+          // Create line and call onChange
+          const newLine = createMeasurementLine(pendingMeasurementPoint, point);
+          onMeasurementsChange?.([...(measurements || []), newLine]);
+          setPendingMeasurementPoint(null);
+        }
+      },
+      [pendingMeasurementPoint, measurements, onMeasurementsChange],
+    );
 
     // 清除未完成的测量点当工具切换时
     useEffect(() => {
@@ -632,9 +639,16 @@ export const DatacenterScene = forwardRef<
           castShadow
           shadow-mapSize={[2048, 2048]}
         >
-          <orthographicCamera attach="shadow-camera" args={[-30, 30, 30, -30]} />
+          <orthographicCamera
+            attach="shadow-camera"
+            args={[-30, 30, 30, -30]}
+          />
         </directionalLight>
-        <hemisphereLight intensity={0.4} groundColor="#ffffff" color="#ffffff" />
+        <hemisphereLight
+          intensity={0.4}
+          groundColor="#ffffff"
+          color="#ffffff"
+        />
 
         {/* 地板网格 */}
         <Grid
@@ -650,7 +664,11 @@ export const DatacenterScene = forwardRef<
         />
 
         {/* 地面 - 浅灰色 */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, -0.02, 0]}
+          receiveShadow
+        >
           <planeGeometry args={[100, 100]} />
           <meshStandardMaterial
             color="#f0f2f5"
@@ -682,7 +700,6 @@ export const DatacenterScene = forwardRef<
             lodThresholds={effectiveConfig.lodThresholds}
             infoDensity={infoDensity}
           />
-
         ))}
 
         {/* 交互工具 */}
@@ -700,7 +717,7 @@ export const DatacenterScene = forwardRef<
           <MeasurementManager
             measurements={measurements}
             onRemove={(id) => {
-              onMeasurementsChange(measurements.filter(m => m.id !== id));
+              onMeasurementsChange(measurements.filter((m) => m.id !== id));
             }}
           />
         )}
@@ -720,22 +737,26 @@ export const DatacenterScene = forwardRef<
         <BoxSelectDetector
           enabled={activeTool === 'boxSelect'}
           selectionBox={selectionBox || null}
-          devicePositions={
-            devices.reduce((acc, dev) => {
+          devicePositions={devices.reduce(
+            (acc, dev) => {
               // 计算设备的世界坐标（简化版，实际应从 matrixWorld 获取或计算）
               // 这里仅作示意，实际需要精确坐标
-              const cab = cabinets.find(c => c.id === dev.cabinetId);
+              const cab = cabinets.find((c) => c.id === dev.cabinetId);
               if (cab && cabinetPositions[cab.id]) {
                 const [cx, cy, cz] = cabinetPositions[cab.id];
                 // 假设设备在机柜内的相对位置
-                acc[dev.id] = [cx, cy + (dev as any).position * 0.0445, cz + 0.3];
+                acc[dev.id] = [
+                  cx,
+                  cy + (dev as any).position * 0.0445,
+                  cz + 0.3,
+                ];
               }
               return acc;
-            }, {} as Record<string, [number, number, number]>)
-          }
+            },
+            {} as Record<string, [number, number, number]>,
+          )}
           onSelectionComplete={(ids) => onSelectionChange?.(ids)}
         />
-
 
         {/* 热力图叠加层 */}
         <HeatmapOverlay

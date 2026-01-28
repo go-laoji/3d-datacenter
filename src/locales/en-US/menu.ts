@@ -58,6 +58,7 @@ export default {
   'menu.idc.cabinet': 'Cabinet Management',
   'menu.idc.device': 'Device Management',
   'menu.idc.template': 'Device Template',
+  'menu.idc.pdu': 'PDU Device',
   'menu.network': 'Network Management',
   'menu.network.connection': 'Connection Management',
   'menu.network.port': 'Port Configuration',
@@ -67,4 +68,5 @@ export default {
   'menu.monitor.alert': 'Alert Center',
   'menu.monitor.alert.rules': 'Alert Rules',
   'menu.monitor.alert.history': 'Alert History',
+  'menu.power': 'Power Management',
 };

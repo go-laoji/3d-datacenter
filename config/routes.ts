@@ -76,7 +76,18 @@ export default [
         name: 'template',
         component: './DeviceTemplate',
       },
+      {
+        path: '/idc/pdu',
+        name: 'pdu',
+        component: './PDU',
+      },
     ],
+  },
+  {
+    path: '/power',
+    name: 'power',
+    icon: 'thunderbolt',
+    component: './Power',
   },
   {
     path: '/network',

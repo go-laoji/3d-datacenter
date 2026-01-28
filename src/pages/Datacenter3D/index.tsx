@@ -31,38 +31,40 @@ import {
   Settings,
   Thermometer,
 } from 'lucide-react';
-import { Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 // 机柜详情现在通过页面跳转到 Cabinet3D 页面展示，不再使用 Modal 组件
 import {
   DatacenterScene,
   type DatacenterSceneRef,
 } from '@/components/3d/DatacenterScene';
 import { HeatmapLegend } from '@/components/3d/HeatmapOverlay';
+import {
+  type InfoDensity,
+  InfoDensityControl,
+} from '@/components/3d/InfoDisplay';
+import {
+  type ActiveTool,
+  BatchOperationPanel,
+  BoxSelectOverlay,
+  type MeasurementLine,
+  type SelectionBox,
+  SelectionToolbar,
+} from '@/components/3d/SelectionTools';
 import { getCabinetsByDatacenter } from '@/services/idc/cabinet';
 import { getConnectionsByDatacenter } from '@/services/idc/connection';
 import { getAllDatacenters } from '@/services/idc/datacenter';
-import {
-  SelectionToolbar,
-  BatchOperationPanel,
-  MeasurementManager,
-  BatchOperation,
-  ActiveTool,
-  MeasurementLine,
-  createMeasurementLine,
-  BoxSelectOverlay,
-  type SelectionBox,
-} from '@/components/3d/SelectionTools';
-import {
-  EnhancedSearch,
-  InfoDensityControl,
-  InfoDensity,
-} from '@/components/3d/InfoDisplay';
-import { useBatchLoader, usePolling } from '@/utils/DataLoader';
 import { getDevices } from '@/services/idc/device';
 import { getAllDeviceTemplates } from '@/services/idc/deviceTemplate';
 import { getCabinetEnvironments } from '@/services/idc/environment';
+import { useBatchLoader, usePolling } from '@/utils/DataLoader';
 import styles from './index.less';
-
 
 // U位图组件
 const USlotDiagram: React.FC<{
@@ -99,9 +101,9 @@ const USlotDiagram: React.FC<{
           style={
             device
               ? {
-                backgroundColor: `${statusColors[device.status]}20`,
-                borderColor: statusColors[device.status],
-              }
+                  backgroundColor: `${statusColors[device.status]}20`,
+                  borderColor: statusColors[device.status],
+                }
               : {}
           }
           onClick={() => device && onDeviceClick(device)}
@@ -175,7 +177,6 @@ const Datacenter3DPage: React.FC = () => {
   const [selectedDevice, setSelectedDevice] = useState<IDC.Device | null>(null);
   const [cabinetDrawerOpen, setCabinetDrawerOpen] = useState(false);
   const [deviceDrawerOpen, setDeviceDrawerOpen] = useState(false);
-
 
   const [showConnections, setShowConnections] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
@@ -251,7 +252,6 @@ const Datacenter3DPage: React.FC = () => {
     enabled: !!selectedDc,
     cacheKey: selectedDc ? `devices_${selectedDc}` : undefined,
   });
-
 
   // 筛选当前数据中心的设备
   const currentDcDevices = useMemo(() => {
@@ -518,7 +518,6 @@ const Datacenter3DPage: React.FC = () => {
             </div>
           ) : cabinets.length > 0 ? (
             <>
-
               {/* 热力图图例 */}
               {showHeatmap && (
                 <div
@@ -543,8 +542,6 @@ const Datacenter3DPage: React.FC = () => {
                   pointerEvents: 'none', // 允许点击穿透
                 }}
               >
-
-
                 <div style={{ pointerEvents: 'auto' }}>
                   <InfoDensityControl
                     density={infoDensity}
@@ -572,7 +569,9 @@ const Datacenter3DPage: React.FC = () => {
                 <BatchOperationPanel
                   selectedIds={selectedDeviceIds}
                   onOperation={(op) => {
-                    message.info(`执行批量操作: ${op.type} (${op.targetIds.length}个设备)`);
+                    message.info(
+                      `执行批量操作: ${op.type} (${op.targetIds.length}个设备)`,
+                    );
                     // 这里实现实际的批量操作逻辑
                   }}
                   onClearSelection={() => setSelectedDeviceIds([])}
@@ -625,7 +624,6 @@ const Datacenter3DPage: React.FC = () => {
                     onSelectDevice={handleSelectDevice}
                     highlightedDeviceId={highlightedDeviceId}
                     highlightedCabinetId={highlightedCabinetId}
-
                     // 性能配置
                     optimizationConfig={{
                       enableLOD: true,
@@ -636,7 +634,6 @@ const Datacenter3DPage: React.FC = () => {
                       maxVisibleDevices: 1000,
                       updateFrequency: 100,
                     }}
-
                     // 交互配置
                     activeTool={activeTool}
                     measurements={measurements}
@@ -645,7 +642,6 @@ const Datacenter3DPage: React.FC = () => {
                     selectionBox={selectionBox}
                     onSelectionChange={setSelectedDeviceIds}
                     infoDensity={infoDensity}
-
                   />
                 </Suspense>
               </Canvas>
@@ -715,7 +711,7 @@ const Datacenter3DPage: React.FC = () => {
                     percent={Math.round(
                       (selectedCabinet.currentPower /
                         selectedCabinet.maxPower) *
-                      100,
+                        100,
                     )}
                     size="small"
                     strokeColor="#faad14"
@@ -859,11 +855,11 @@ const Datacenter3DPage: React.FC = () => {
                   c.sourceDeviceId === selectedDevice.id ||
                   c.targetDeviceId === selectedDevice.id,
               ).length === 0 && (
-                  <Empty
-                    description="暂无连线"
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  />
-                )}
+                <Empty
+                  description="暂无连线"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
+              )}
             </Card>
 
             <div style={{ marginTop: 16 }}>
@@ -900,8 +896,6 @@ const Datacenter3DPage: React.FC = () => {
           </>
         )}
       </Drawer>
-
-
     </PageContainer>
   );
 };

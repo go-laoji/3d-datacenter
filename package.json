@@ -26,8 +26,9 @@
     "start:no-mock": "cross-env MOCK=none UMI_ENV=dev max dev",
     "start:pre": "cross-env REACT_APP_ENV=pre UMI_ENV=dev max dev",
     "start:test": "cross-env REACT_APP_ENV=test MOCK=none UMI_ENV=dev max dev",
-    "test": "jest",
-    "test:coverage": "npm run jest -- --coverage",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:update": "npm run jest -- -u",
     "tsc": "tsc --noEmit"
   },
@@ -49,7 +50,8 @@
     "lucide-react": "^0.562.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "three": "^0.182.0"
+    "three": "^0.182.0",
+    "zustand": "^5.0.10"
   },
   "devDependencies": {
     "@ant-design/pro-cli": "^3.3.0",
@@ -57,7 +59,8 @@
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
     "@testing-library/dom": "^10.4.0",
-    "@testing-library/react": "^16.0.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.10",
@@ -68,18 +71,21 @@
     "@types/three": "^0.182.0",
     "@types/uuid": "^11.0.0",
     "@umijs/max": "^4.3.24",
+    "@vitejs/plugin-react": "^5.1.2",
     "cross-env": "^7.0.3",
     "express": "^4.21.1",
     "gh-pages": "^6.1.1",
     "husky": "^9.1.7",
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^29.7.0",
+    "jsdom": "^27.4.0",
     "lint-staged": "^16.1.2",
     "mockjs": "^1.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",
     "umi-presets-pro": "^2.0.3",
-    "umi-serve": "^1.9.11"
+    "umi-serve": "^1.9.11",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=20.0.0"

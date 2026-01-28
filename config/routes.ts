@@ -24,32 +24,32 @@ export default [
   },
   {
     path: '/dashboard',
-    name: '仪表板',
+    name: 'dashboard',
     icon: 'dashboard',
     component: './Dashboard',
   },
   {
     path: '/datacenter3d',
-    name: '3D机房',
+    name: 'datacenter3d',
     icon: 'appstore',
     component: './Datacenter3D',
   },
   {
     path: '/resource-tree',
-    name: '资源树',
+    name: 'resource-tree',
     icon: 'apartment',
     component: './ResourceTree',
   },
   {
     path: '/cabinet3d',
-    name: '机柜3D',
+    name: 'cabinet3d',
     icon: 'appstore',
     component: './Cabinet3D',
     hideInMenu: true,
   },
   {
     path: '/idc',
-    name: '资源管理',
+    name: 'idc',
     icon: 'cluster',
     routes: [
       {
@@ -58,29 +58,29 @@ export default [
       },
       {
         path: '/idc/datacenter',
-        name: '数据中心',
+        name: 'datacenter',
         component: './Datacenter',
       },
       {
         path: '/idc/cabinet',
-        name: '机柜管理',
+        name: 'cabinet',
         component: './Cabinet',
       },
       {
         path: '/idc/device',
-        name: '设备管理',
+        name: 'device',
         component: './Device',
       },
       {
         path: '/idc/template',
-        name: '设备模板',
+        name: 'template',
         component: './DeviceTemplate',
       },
     ],
   },
   {
     path: '/network',
-    name: '网络管理',
+    name: 'network',
     icon: 'api',
     routes: [
       {
@@ -89,24 +89,24 @@ export default [
       },
       {
         path: '/network/connection',
-        name: '连线管理',
+        name: 'connection',
         component: './Connection',
       },
       {
         path: '/network/port',
-        name: '端口配置',
+        name: 'port',
         component: './Port',
       },
       {
         path: '/network/topology',
-        name: '网络拓扑',
+        name: 'topology',
         component: './Topology',
       },
     ],
   },
   {
     path: '/monitor',
-    name: '监控中心',
+    name: 'monitor',
     icon: 'monitor',
     routes: [
       {
@@ -115,23 +115,23 @@ export default [
       },
       {
         path: '/monitor/environment',
-        name: '环境监控',
+        name: 'environment',
         component: './Environment',
       },
       {
         path: '/monitor/alert',
-        name: '告警中心',
+        name: 'alert',
         component: './AlertCenter',
       },
       {
         path: '/monitor/alert/rules',
-        name: '告警规则',
+        name: 'alert.rules',
         component: './AlertCenter/AlertRules',
         hideInMenu: true,
       },
       {
         path: '/monitor/alert/history',
-        name: '告警历史',
+        name: 'alert.history',
         component: './AlertCenter/AlertHistory',
         hideInMenu: true,
       },
@@ -139,7 +139,7 @@ export default [
   },
   {
     path: '/admin',
-    name: '系统管理',
+    name: 'admin',
     icon: 'crown',
     access: 'canAdmin',
     routes: [
@@ -149,7 +149,7 @@ export default [
       },
       {
         path: '/admin/sub-page',
-        name: '系统设置',
+        name: 'settings',
         component: './Admin',
       },
     ],

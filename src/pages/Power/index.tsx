@@ -1,11 +1,11 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import {
-  Alert,
   Card,
   Col,
   Progress,
   Row,
+  Select,
   Space,
   Spin,
   Statistic,
@@ -24,6 +24,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { getAllDatacenters } from '@/services/idc/datacenter';
 import {
   getPowerLoadBalance,
   getPowerRedundancy,
@@ -33,126 +34,14 @@ import {
   type PowerNode,
   type RedundancyStatus,
 } from '@/services/idc/power';
-
-// 节点类型配置(保留用于后续扩展)
-const _nodeTypeConfig: Record<
-  string,
-  { icon: React.ReactNode; color: string; label: string }
-> = {
-  utility: { icon: <Zap size={16} />, color: '#722ed1', label: '市电' },
-  ups: { icon: <Activity size={16} />, color: '#1890ff', label: 'UPS' },
-  pdu: { icon: <Shield size={16} />, color: '#13c2c2', label: 'PDU' },
-  device: { icon: <Server size={16} />, color: '#52c41a', label: '设备' },
-};
+import styles from './index.less';
+import PowerTopologyGraph from './PowerTopologyGraph';
 
 // 状态配置
 const statusConfig: Record<string, { color: string; text: string }> = {
   online: { color: 'success', text: '在线' },
   offline: { color: 'default', text: '离线' },
   warning: { color: 'warning', text: '告警' },
-};
-
-// 电源拓扑可视化组件(简化版)
-const PowerTopologyView: React.FC<{
-  nodes: PowerNode[];
-  links: PowerLink[];
-}> = ({ nodes, links: _links }) => {
-  // 按类型分组节点
-  const utilityNodes = nodes.filter((n) => n.type === 'utility');
-  const upsNodes = nodes.filter((n) => n.type === 'ups');
-  const pduNodes = nodes.filter((n) => n.type === 'pdu');
-  const deviceNodes = nodes.filter((n) => n.type === 'device');
-
-  const renderNodeGroup = (
-    title: string,
-    groupNodes: PowerNode[],
-    icon: React.ReactNode,
-    color: string,
-  ) => (
-    <Card
-      size="small"
-      title={
-        <Space>
-          {icon}
-          <span>{title}</span>
-        </Space>
-      }
-      style={{ marginBottom: 16 }}
-    >
-      <Row gutter={[8, 8]}>
-        {groupNodes.map((node) => {
-          const load =
-            node.capacity && node.load
-              ? Math.round((node.load / node.capacity) * 100)
-              : 0;
-          return (
-            <Col key={node.id} span={12}>
-              <Card size="small" style={{ borderLeft: `3px solid ${color}` }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Space>
-                    <Tag color={statusConfig[node.status]?.color}>
-                      {node.name}
-                    </Tag>
-                  </Space>
-                  <Tag color={statusConfig[node.status]?.color}>
-                    {statusConfig[node.status]?.text}
-                  </Tag>
-                </div>
-                {node.capacity && (
-                  <Progress
-                    percent={load}
-                    size="small"
-                    strokeColor={
-                      load > 80 ? '#f5222d' : load > 60 ? '#faad14' : '#52c41a'
-                    }
-                    format={() => `${node.load}W / ${node.capacity}W`}
-                    style={{ marginTop: 8 }}
-                  />
-                )}
-              </Card>
-            </Col>
-          );
-        })}
-      </Row>
-    </Card>
-  );
-
-  return (
-    <div>
-      <Alert
-        message="电源拓扑"
-        description="展示从市电到终端设备的电源链路关系 (市电 → UPS → PDU → 设备)"
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
-      {renderNodeGroup('市电输入', utilityNodes, <Zap size={14} />, '#722ed1')}
-      {renderNodeGroup(
-        'UPS不间断电源',
-        upsNodes,
-        <Activity size={14} />,
-        '#1890ff',
-      )}
-      {renderNodeGroup(
-        'PDU配电单元',
-        pduNodes,
-        <Shield size={14} />,
-        '#13c2c2',
-      )}
-      {renderNodeGroup(
-        '终端设备',
-        deviceNodes,
-        <Server size={14} />,
-        '#52c41a',
-      )}
-    </div>
-  );
 };
 
 // 电源冗余状态面板
@@ -348,6 +237,10 @@ const LoadBalancePanel: React.FC<{ data: LoadBalanceStatus | null }> = ({
 const PowerPage: React.FC = () => {
   const intl = useIntl();
   const [loading, setLoading] = useState(true);
+  const [datacenters, setDatacenters] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [selectedDc, setSelectedDc] = useState<string>();
   const [topology, setTopology] = useState<{
     nodes: PowerNode[];
     links: PowerLink[];
@@ -357,14 +250,27 @@ const PowerPage: React.FC = () => {
     null,
   );
 
+  // 加载数据中心列表
   useEffect(() => {
+    getAllDatacenters().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setDatacenters(res.data);
+        setSelectedDc(res.data[0].id);
+      }
+    });
+  }, []);
+
+  // 加载电源数据
+  useEffect(() => {
+    if (!selectedDc) return;
+
     const fetchData = async () => {
       setLoading(true);
       try {
         const [topoRes, redundancyRes, loadBalanceRes] = await Promise.all([
-          getPowerTopology(),
-          getPowerRedundancy(),
-          getPowerLoadBalance(),
+          getPowerTopology(selectedDc),
+          getPowerRedundancy(selectedDc),
+          getPowerLoadBalance(selectedDc),
         ]);
 
         if (topoRes.success) setTopology(topoRes.data);
@@ -378,7 +284,7 @@ const PowerPage: React.FC = () => {
     };
 
     fetchData();
-  }, []);
+  }, [selectedDc]);
 
   return (
     <PageContainer
@@ -390,7 +296,24 @@ const PowerPage: React.FC = () => {
         subTitle: '电源拓扑、冗余状态和负载均衡监控',
       }}
     >
-      {loading ? (
+      {/* 机房选择器 */}
+      <Card style={{ marginBottom: 24 }}>
+        <div className={styles.datacenterSelector}>
+          <span>选择数据中心：</span>
+          <Select
+            placeholder="请选择数据中心"
+            style={{ width: 250 }}
+            value={selectedDc}
+            onChange={setSelectedDc}
+            options={datacenters.map((dc) => ({
+              value: dc.id,
+              label: dc.name,
+            }))}
+          />
+        </div>
+      </Card>
+
+      {loading && !topology.nodes.length ? (
         <div style={{ textAlign: 'center', padding: 50 }}>
           <Spin size="large" />
         </div>
@@ -439,6 +362,15 @@ const PowerPage: React.FC = () => {
             </Col>
           </Row>
 
+          {/* 电源拓扑图形 */}
+          <Card title="电源拓扑" style={{ marginBottom: 24 }}>
+            <PowerTopologyGraph
+              nodes={topology.nodes}
+              links={topology.links}
+              loading={loading}
+            />
+          </Card>
+
           {/* 负载均衡状态 */}
           <Card title="负载均衡状态" style={{ marginBottom: 24 }}>
             <LoadBalancePanel data={loadBalance} />
@@ -447,11 +379,6 @@ const PowerPage: React.FC = () => {
           {/* 电源冗余状态 */}
           <Card title="电源冗余状态" style={{ marginBottom: 24 }}>
             <RedundancyPanel data={redundancy} />
-          </Card>
-
-          {/* 电源拓扑 */}
-          <Card title="电源拓扑">
-            <PowerTopologyView nodes={topology.nodes} links={topology.links} />
           </Card>
         </>
       )}

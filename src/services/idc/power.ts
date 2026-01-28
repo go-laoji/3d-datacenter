@@ -41,7 +41,7 @@ export interface LoadBalanceStatus {
 }
 
 // 获取电源拓扑
-export async function getPowerTopology() {
+export async function getPowerTopology(datacenterId?: string) {
     return request<{
         success: boolean;
         data: {
@@ -50,25 +50,28 @@ export async function getPowerTopology() {
         };
     }>('/api/power/topology', {
         method: 'GET',
+        params: { datacenterId },
     });
 }
 
 // 获取电源冗余状态
-export async function getPowerRedundancy() {
+export async function getPowerRedundancy(datacenterId?: string) {
     return request<{
         success: boolean;
         data: RedundancyStatus;
     }>('/api/power/redundancy', {
         method: 'GET',
+        params: { datacenterId },
     });
 }
 
 // 获取负载均衡状态
-export async function getPowerLoadBalance() {
+export async function getPowerLoadBalance(datacenterId?: string) {
     return request<{
         success: boolean;
         data: LoadBalanceStatus;
     }>('/api/power/load-balance', {
         method: 'GET',
+        params: { datacenterId },
     });
 }

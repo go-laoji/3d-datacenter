@@ -10,6 +10,7 @@ export async function getDevices(
         assetCode?: string;
         managementIp?: string;
         department?: string;
+        isMounted?: string; // "true" / "false" / ""
     },
 ) {
     return request<IDC.PageResult<IDC.Device>>('/api/idc/devices', {
@@ -79,5 +80,12 @@ export async function getDeviceStats() {
         byDepartment: Record<string, number>;
     }>>('/api/idc/devices/stats', {
         method: 'GET',
+    });
+}
+
+/** 设备下架（保留数据） */
+export async function unmountDevice(id: string) {
+    return request<IDC.ApiResponse>(`/api/idc/devices/${id}/unmount`, {
+        method: 'POST',
     });
 }

@@ -39,6 +39,14 @@ export async function batchAcknowledgeAlerts(ids: string[]) {
     });
 }
 
+/** 批量解决告警 */
+export async function batchResolveAlerts(ids: string[]) {
+    return request<IDC.ApiResponse>('/api/idc/alerts/batch-resolve', {
+        method: 'POST',
+        data: { ids },
+    });
+}
+
 /** 获取告警规则列表 */
 export async function getAlertRules() {
     return request<IDC.ApiResponse<IDC.AlertRule[]>>('/api/idc/alert-rules', {

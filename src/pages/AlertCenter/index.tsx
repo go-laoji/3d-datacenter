@@ -29,10 +29,11 @@ import {
   Settings,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   acknowledgeAlert,
   batchAcknowledgeAlerts,
+  batchResolveAlerts,
   getAlertStats,
   getAlerts,
   resolveAlert,
@@ -84,13 +85,25 @@ const AlertCenter: React.FC = () => {
   );
   const [ackNotes, setAckNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 自动刷新（30秒轮询）
+  useEffect(() => {
+    refreshTimerRef.current = setInterval(() => {
+      fetchData(true); // 静默刷新
+    }, 30000);
+    return () => {
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    };
+  }, [current, pageSize, selectedLevel, selectedAck, selectedType]);
 
   useEffect(() => {
     fetchData();
   }, [current, pageSize, selectedLevel, selectedAck, selectedType]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [alertRes, statsRes] = await Promise.all([
         getAlerts({
@@ -110,10 +123,12 @@ const AlertCenter: React.FC = () => {
       if (statsRes.success && statsRes.data) {
         setStats(statsRes.data);
       }
+      setLastRefreshTime(new Date());
     } catch (error) {
       console.error('Failed to fetch alerts:', error);
+      if (!silent) message.error('获取告警数据失败');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -169,6 +184,32 @@ const AlertCenter: React.FC = () => {
     } catch (_error) {
       message.error('批量确认失败');
     }
+  };
+
+  const handleBatchResolve = async () => {
+    if (selectedRows.length === 0) {
+      message.warning('请选择要解决的告警');
+      return;
+    }
+    try {
+      const res = await batchResolveAlerts(selectedRows);
+      if (res.success) {
+        message.success(`已批量解决 ${selectedRows.length} 条告警`);
+        setSelectedRows([]);
+        fetchData();
+      }
+    } catch (_error) {
+      message.error('批量解决失败');
+    }
+  };
+
+  // 格式化上次刷新时间
+  const formatLastRefresh = () => {
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - lastRefreshTime.getTime()) / 1000);
+    if (diff < 5) return '刚刚更新';
+    if (diff < 60) return `${diff}秒前更新`;
+    return `${Math.floor(diff / 60)}分钟前更新`;
   };
 
   const formatTime = (time: string) => {
@@ -400,10 +441,25 @@ const AlertCenter: React.FC = () => {
               ))}
             </Select>
             {selectedRows.length > 0 && (
-              <Button type="primary" onClick={handleBatchAcknowledge}>
-                批量确认 ({selectedRows.length})
-              </Button>
+              <>
+                <Button type="primary" onClick={handleBatchAcknowledge}>
+                  批量确认 ({selectedRows.length})
+                </Button>
+                <Button onClick={handleBatchResolve}>
+                  批量解决 ({selectedRows.length})
+                </Button>
+              </>
             )}
+            <Tooltip title={formatLastRefresh()}>
+              <Button
+                icon={<Clock size={14} />}
+                onClick={() => fetchData()}
+                size="small"
+                type="text"
+              >
+                {formatLastRefresh()}
+              </Button>
+            </Tooltip>
           </Space>
         }
       >

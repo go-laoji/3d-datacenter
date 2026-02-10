@@ -3,7 +3,9 @@ import { PageContainer } from '@ant-design/pro-components';
 import {
   Card,
   Col,
+  message,
   Progress,
+  Radio,
   Row,
   Select,
   Space,
@@ -41,6 +43,8 @@ const Environment: React.FC = () => {
   const [energyStats, setEnergyStats] = useState<IDC.EnergyStats | null>(null);
   const [datacenters, setDatacenters] = useState<any[]>([]);
   const [selectedDc, setSelectedDc] = useState<string>('');
+  const [tempHours, setTempHours] = useState<number>(24);
+  const [selectedCabinetDc, setSelectedCabinetDc] = useState<string>('');
 
   useEffect(() => {
     fetchData();
@@ -59,7 +63,7 @@ const Environment: React.FC = () => {
         await Promise.all([
           getEnvironmentOverview(),
           getCabinetEnvironments(),
-          getTemperatureTrend(24),
+          getTemperatureTrend(tempHours),
           getPueTrend(30),
           getEnergyStats(),
           getAllDatacenters(),
@@ -88,6 +92,7 @@ const Environment: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to fetch environment data:', error);
+      message.error('获取环境数据失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -101,6 +106,7 @@ const Environment: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to fetch PUE trend:', error);
+      message.error('获取PUE趋势数据失败');
     }
   };
 
@@ -392,7 +398,27 @@ const Environment: React.FC = () => {
       )}
 
       {/* 温度趋势图 */}
-      <Card title="24小时温度趋势" className={styles.chartCard}>
+      <Card
+        title="温度趋势"
+        className={styles.chartCard}
+        extra={
+          <Radio.Group
+            value={tempHours}
+            onChange={(e) => {
+              setTempHours(e.target.value);
+              getTemperatureTrend(e.target.value).then((res) => {
+                if (res.success && res.data) setTempTrend(res.data);
+              });
+            }}
+            size="small"
+          >
+            <Radio.Button value={6}>6小时</Radio.Button>
+            <Radio.Button value={12}>12小时</Radio.Button>
+            <Radio.Button value={24}>24小时</Radio.Button>
+          </Radio.Group>
+        }
+      >
+        {' '}
         <Area {...tempChartConfig} />
       </Card>
 
@@ -424,6 +450,17 @@ const Environment: React.FC = () => {
         className={styles.cabinetTable}
         extra={
           <Space>
+            <Select
+              placeholder="按数据中心筛选"
+              allowClear
+              style={{ width: 180 }}
+              value={selectedCabinetDc || undefined}
+              onChange={(v) => setSelectedCabinetDc(v || '')}
+              options={datacenters.map((dc) => ({
+                value: dc.name,
+                label: dc.name,
+              }))}
+            />
             <Tooltip title="警告: 温度或湿度接近阈值">
               <Tag color="warning" icon={<AlertTriangle size={12} />}>
                 {cabinetEnvs.filter((c) => c.status === 'warning').length} 警告
@@ -439,7 +476,13 @@ const Environment: React.FC = () => {
       >
         <Table
           columns={columns}
-          dataSource={cabinetEnvs}
+          dataSource={
+            selectedCabinetDc
+              ? cabinetEnvs.filter(
+                  (c) => c.datacenterName === selectedCabinetDc,
+                )
+              : cabinetEnvs
+          }
           rowKey="cabinetId"
           pagination={{ pageSize: 10, showSizeChanger: true }}
         />

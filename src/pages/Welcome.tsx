@@ -1,163 +1,244 @@
 import { PageContainer } from '@ant-design/pro-components';
-import { useModel } from '@umijs/max';
-import { Card, theme } from 'antd';
-import React from 'react';
+import { history } from '@umijs/max';
+import { Card, Col, Row, Space, Statistic, Tag, Typography } from 'antd';
+import {
+  Activity,
+  AlertTriangle,
+  Box,
+  Database,
+  HardDrive,
+  LayoutDashboard,
+  Network,
+  Server,
+  Settings,
+  Shield,
+  Zap,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { getDashboardStats } from '@/services/idc/dashboard';
 
-/**
- * 每个单独的卡片，为了复用样式抽成了组件
- * @param param0
- * @returns
- */
-const InfoCard: React.FC<{
-  title: string;
-  index: number;
-  desc: string;
-  href: string;
-}> = ({ title, href, index, desc }) => {
-  const { useToken } = theme;
+const { Title, Text } = Typography;
 
-  const { token } = useToken();
-
-  return (
-    <div
-      style={{
-        backgroundColor: token.colorBgContainer,
-        boxShadow: token.boxShadow,
-        borderRadius: '8px',
-        fontSize: '14px',
-        color: token.colorTextSecondary,
-        lineHeight: '22px',
-        padding: '16px 19px',
-        minWidth: '220px',
-        flex: 1,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          gap: '4px',
-          alignItems: 'center',
-        }}
-      >
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            lineHeight: '22px',
-            backgroundSize: '100%',
-            textAlign: 'center',
-            padding: '8px 16px 16px 12px',
-            color: '#FFF',
-            fontWeight: 'bold',
-            backgroundImage:
-              "url('https://gw.alipayobjects.com/zos/bmw-prod/daaf8d50-8e6d-4251-905d-676a24ddfa12.svg')",
-          }}
-        >
-          {index}
-        </div>
-        <div
-          style={{
-            fontSize: '16px',
-            color: token.colorText,
-            paddingBottom: 8,
-          }}
-        >
-          {title}
-        </div>
-      </div>
-      <div
-        style={{
-          fontSize: '14px',
-          color: token.colorTextSecondary,
-          textAlign: 'justify',
-          lineHeight: '22px',
-          marginBottom: 8,
-        }}
-      >
-        {desc}
-      </div>
-      <a href={href} target="_blank" rel="noreferrer">
-        了解更多 {'>'}
-      </a>
-    </div>
-  );
-};
+// 快捷入口配置
+const quickLinks = [
+  {
+    title: '仪表盘',
+    desc: '系统总览与实时监控',
+    icon: <LayoutDashboard size={28} />,
+    color: '#1890ff',
+    path: '/dashboard',
+  },
+  {
+    title: '数据中心',
+    desc: '机房信息管理',
+    icon: <Database size={28} />,
+    color: '#13c2c2',
+    path: '/datacenter',
+  },
+  {
+    title: '机柜管理',
+    desc: '机柜与U位管理',
+    icon: <Server size={28} />,
+    color: '#52c41a',
+    path: '/cabinet',
+  },
+  {
+    title: '设备管理',
+    desc: '设备上下架与监控',
+    icon: <HardDrive size={28} />,
+    color: '#722ed1',
+    path: '/device',
+  },
+  {
+    title: '告警中心',
+    desc: '系统告警与通知',
+    icon: <AlertTriangle size={28} />,
+    color: '#f5222d',
+    path: '/alert-center',
+  },
+  {
+    title: '网络拓扑',
+    desc: '设备连接关系可视化',
+    icon: <Network size={28} />,
+    color: '#fa8c16',
+    path: '/topology',
+  },
+  {
+    title: '3D视图',
+    desc: '数据中心3D可视化',
+    icon: <Box size={28} />,
+    color: '#2f54eb',
+    path: '/datacenter3d',
+  },
+  {
+    title: '电源管理',
+    desc: '电源拓扑与冗余监控',
+    icon: <Zap size={28} />,
+    color: '#eb2f96',
+    path: '/power',
+  },
+  {
+    title: '环境监控',
+    desc: '温度、湿度、PUE监控',
+    icon: <Activity size={28} />,
+    color: '#faad14',
+    path: '/environment',
+  },
+  {
+    title: '资源树',
+    desc: '层级资源浏览',
+    icon: <Shield size={28} />,
+    color: '#a0d911',
+    path: '/resource-tree',
+  },
+  {
+    title: '设备模板',
+    desc: '设备类型与端口定义',
+    icon: <Settings size={28} />,
+    color: '#597ef7',
+    path: '/device-template',
+  },
+  {
+    title: '连接管理',
+    desc: '物理线缆连接管理',
+    icon: <Network size={28} />,
+    color: '#36cfc9',
+    path: '/connection',
+  },
+];
 
 const Welcome: React.FC = () => {
-  const { token } = theme.useToken();
-  const { initialState } = useModel('@@initialState');
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    getDashboardStats()
+      .then((res) => {
+        if (res.success && res.data) setStats(res.data);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
-    <PageContainer>
-      <Card
-        style={{
-          borderRadius: 8,
-        }}
-        styles={{
-          body: {
-            backgroundImage:
-              initialState?.settings?.navTheme === 'realDark'
-                ? 'background-image: linear-gradient(75deg, #1A1B1F 0%, #191C1F 100%)'
-                : 'background-image: linear-gradient(75deg, #FBFDFF 0%, #F5F7FF 100%)',
-          },
-        }}
-      >
-        <div
-          style={{
-            backgroundPosition: '100% -30%',
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: '274px auto',
-            backgroundImage:
-              "url('https://gw.alipayobjects.com/mdn/rms_a9745b/afts/img/A*BuFmQqsB2iAAAAAAAAAAAAAAARQnAQ')",
-          }}
-        >
-          <div
-            style={{
-              fontSize: '20px',
-              color: token.colorTextHeading,
-            }}
-          >
-            欢迎使用 Ant Design Pro
-          </div>
-          <p
-            style={{
-              fontSize: '14px',
-              color: token.colorTextSecondary,
-              lineHeight: '22px',
-              marginTop: 16,
-              marginBottom: 32,
-              width: '65%',
-            }}
-          >
-            Ant Design Pro 是一个整合了 umi，Ant Design 和 ProComponents
-            的脚手架方案。致力于在设计规范和基础组件的基础上，继续向上构建，提炼出典型模板/业务组件/配套设计资源，进一步提升企业级中后台产品设计研发过程中的『用户』和『设计者』的体验。
-          </p>
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 16,
-            }}
-          >
-            <InfoCard
-              index={1}
-              href="https://umijs.org/docs/introduce/introduce"
-              title="了解 umi"
-              desc="umi 是一个可扩展的企业级前端应用框架,umi 以路由为基础的，同时支持配置式路由和约定式路由，保证路由的功能完备，并以此进行功能扩展。"
-            />
-            <InfoCard
-              index={2}
-              title="了解 ant design"
-              href="https://ant.design"
-              desc="antd 是基于 Ant Design 设计体系的 React UI 组件库，主要用于研发企业级中后台产品。"
-            />
-            <InfoCard
-              index={3}
-              title="了解 Pro Components"
-              href="https://procomponents.ant.design"
-              desc="ProComponents 是一个基于 Ant Design 做了更高抽象的模板组件，以 一个组件就是一个页面为开发理念，为中后台开发带来更好的体验。"
-            />
-          </div>
-        </div>
+    <PageContainer
+      header={{
+        title: '欢迎使用 TDDC 数据中心管理平台',
+        subTitle: '一站式数据中心基础设施管理',
+      }}
+    >
+      {/* 概览统计 */}
+      {stats && (
+        <Row gutter={16} style={{ marginBottom: 24 }}>
+          <Col xs={12} sm={6}>
+            <Card
+              size="small"
+              hoverable
+              onClick={() => history.push('/datacenter')}
+            >
+              <Statistic
+                title="数据中心"
+                value={stats.datacenterCount || 0}
+                prefix={<Database size={16} style={{ color: '#13c2c2' }} />}
+                suffix="个"
+              />
+            </Card>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Card
+              size="small"
+              hoverable
+              onClick={() => history.push('/cabinet')}
+            >
+              <Statistic
+                title="机柜"
+                value={stats.cabinetCount || 0}
+                prefix={<Server size={16} style={{ color: '#52c41a' }} />}
+                suffix="个"
+              />
+            </Card>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Card
+              size="small"
+              hoverable
+              onClick={() => history.push('/device')}
+            >
+              <Statistic
+                title="设备"
+                value={stats.deviceCount || 0}
+                prefix={<HardDrive size={16} style={{ color: '#722ed1' }} />}
+                suffix="台"
+              />
+            </Card>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Card
+              size="small"
+              hoverable
+              onClick={() => history.push('/alert-center')}
+            >
+              <Statistic
+                title="活跃告警"
+                value={stats.alertCount || 0}
+                valueStyle={{
+                  color: (stats.alertCount || 0) > 0 ? '#f5222d' : '#52c41a',
+                }}
+                prefix={<AlertTriangle size={16} />}
+                suffix="条"
+              />
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* 快捷入口 */}
+      <Card>
+        <Title level={5} style={{ marginBottom: 20 }}>
+          <Space>
+            <LayoutDashboard size={18} />
+            功能导航
+          </Space>
+        </Title>
+        <Row gutter={[16, 16]}>
+          {quickLinks.map((item) => (
+            <Col xs={12} sm={8} md={6} lg={4} key={item.path}>
+              <Card
+                hoverable
+                size="small"
+                onClick={() => history.push(item.path)}
+                style={{
+                  textAlign: 'center',
+                  borderRadius: 8,
+                  transition: 'all 0.3s',
+                }}
+                styles={{
+                  body: { padding: '20px 12px' },
+                }}
+              >
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 12,
+                    background: `${item.color}15`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 12px',
+                    color: item.color,
+                  }}
+                >
+                  {item.icon}
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                  {item.title}
+                </div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {item.desc}
+                </Text>
+              </Card>
+            </Col>
+          ))}
+        </Row>
       </Card>
     </PageContainer>
   );

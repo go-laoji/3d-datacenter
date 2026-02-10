@@ -1,6 +1,7 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { Graph } from '@antv/g6';
-import { Badge, Card, Empty, Select, Space, Spin } from 'antd';
+import { Badge, Button, Card, Empty, Select, Space, Spin, Tooltip } from 'antd';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getTopology } from '@/services/idc/dashboard';
 import { getAllDatacenters } from '@/services/idc/datacenter';
@@ -31,9 +32,11 @@ const TopologyPage: React.FC = () => {
   const [edges, setEdges] = useState<TopologyEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // 加载数据中心列表
   useEffect(() => {
@@ -244,6 +247,21 @@ const TopologyPage: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // 全屏切换
+  const toggleFullscreen = () => {
+    if (!cardRef.current) return;
+    if (!isFullscreen) {
+      if (cardRef.current.requestFullscreen) {
+        cardRef.current.requestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+    setIsFullscreen(!isFullscreen);
+  };
+
   return (
     <PageContainer
       header={{
@@ -251,7 +269,10 @@ const TopologyPage: React.FC = () => {
         subTitle: '可视化查看设备网络连接关系',
       }}
     >
-      <Card>
+      <Card
+        ref={cardRef}
+        style={{ background: isFullscreen ? '#fff' : undefined }}
+      >
         <Space style={{ marginBottom: 16 }}>
           <span>选择数据中心：</span>
           <Select
@@ -281,6 +302,23 @@ const TopologyPage: React.FC = () => {
             <Badge color={connectionColors.network} text="网络" />
             <Badge color={connectionColors.storage} text="存储" />
             <Badge color={connectionColors.management} text="管理" />
+          </Space>
+          <Space>
+            <Tooltip title={isFullscreen ? '退出全屏' : '全屏模式'}>
+              <Button
+                icon={
+                  isFullscreen ? (
+                    <Minimize2 size={14} />
+                  ) : (
+                    <Maximize2 size={14} />
+                  )
+                }
+                onClick={toggleFullscreen}
+                size="small"
+              >
+                {isFullscreen ? '退出全屏' : '全屏'}
+              </Button>
+            </Tooltip>
           </Space>
         </div>
 

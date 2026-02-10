@@ -131,6 +131,7 @@ declare namespace IDC {
     isBuiltin: boolean; // 是否内置模板
     description?: string;
     specs?: Record<string, string>; // 其他规格参数
+    maxPower?: number; // 最高功率(W)
     createdAt: string;
     updatedAt: string;
   }
@@ -145,6 +146,7 @@ declare namespace IDC {
     frontColor?: string;
     description?: string;
     specs?: Record<string, string>;
+    maxPower?: number; // 最高功率(W)
   }
 
   // ==================== 设备 ====================
@@ -168,6 +170,7 @@ declare namespace IDC {
     vendor?: string; // 供应商
     owner?: string; // 负责人
     department?: string; // 所属部门
+    isMounted?: boolean; // 是否已上架
     description?: string;
     createdAt: string;
     updatedAt: string;

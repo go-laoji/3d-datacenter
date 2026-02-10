@@ -163,7 +163,20 @@ const PDUPage: React.FC = () => {
       },
       render: (_, record) => {
         const cab = cabinets.find((c) => c.id === record.cabinetId);
-        return cab?.name || record.cabinetId;
+        return cab ? (
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              // 跳转到机柜管理页面
+              window.location.hash = `/cabinet?id=${record.cabinetId}`;
+            }}
+          >
+            {cab.name}
+          </Button>
+        ) : (
+          record.cabinetId
+        );
       },
     },
     {
@@ -460,6 +473,7 @@ const PDUPage: React.FC = () => {
         title="编辑PDU设备"
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
+        key={currentRow?.id}
         width={600}
         initialValues={{
           ...currentRow,

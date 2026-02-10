@@ -31,7 +31,7 @@ import {
   TrendingUp,
   Zap,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   getCabinetUsageRank,
   getDashboardStats,
@@ -93,11 +93,20 @@ const Dashboard: React.FC = () => {
             avgPue: energyRes.data.avgPue,
           });
         }
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+        message.error('获取仪表板数据失败');
       } finally {
         setLoading(false);
       }
     };
     fetchData();
+
+    // 60秒自动刷新
+    const timer = setInterval(() => {
+      fetchData();
+    }, 60000);
+    return () => clearInterval(timer);
   }, []);
 
   // 快速确认告警
@@ -194,7 +203,13 @@ const Dashboard: React.FC = () => {
       {/* 统计卡片 */}
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={6}>
-          <Card className={styles.statCard} loading={loading}>
+          <Card
+            className={styles.statCard}
+            loading={loading}
+            hoverable
+            onClick={() => history.push('/datacenter3d')}
+            style={{ cursor: 'pointer' }}
+          >
             <div
               className={styles.statIcon}
               style={{
@@ -211,7 +226,13 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card className={styles.statCard} loading={loading}>
+          <Card
+            className={styles.statCard}
+            loading={loading}
+            hoverable
+            onClick={() => history.push('/idc/cabinet')}
+            style={{ cursor: 'pointer' }}
+          >
             <div
               className={styles.statIcon}
               style={{
@@ -228,7 +249,13 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card className={styles.statCard} loading={loading}>
+          <Card
+            className={styles.statCard}
+            loading={loading}
+            hoverable
+            onClick={() => history.push('/idc/device')}
+            style={{ cursor: 'pointer' }}
+          >
             <div
               className={styles.statIcon}
               style={{
@@ -245,7 +272,13 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card className={styles.statCard} loading={loading}>
+          <Card
+            className={styles.statCard}
+            loading={loading}
+            hoverable
+            onClick={() => history.push('/network/connection')}
+            style={{ cursor: 'pointer' }}
+          >
             <div
               className={styles.statIcon}
               style={{

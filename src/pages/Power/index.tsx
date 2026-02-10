@@ -3,6 +3,7 @@ import { useIntl } from '@umijs/max';
 import {
   Card,
   Col,
+  message,
   Progress,
   Row,
   Select,
@@ -278,6 +279,7 @@ const PowerPage: React.FC = () => {
         if (loadBalanceRes.success) setLoadBalance(loadBalanceRes.data);
       } catch (error) {
         console.error('Failed to fetch power data:', error);
+        message.error('获取电源数据失败，请稍后重试');
       } finally {
         setLoading(false);
       }

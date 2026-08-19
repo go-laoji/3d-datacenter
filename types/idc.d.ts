@@ -216,6 +216,12 @@ declare namespace IDC {
     powerRatioAfter?: number;
   }
 
+  interface DeviceUnmountImpact {
+    connectionCount: number;
+    powerConnectionCount: number;
+    activeAlertCount: number;
+  }
+
   type LayoutZoneType =
     | 'zone'
     | 'hot_aisle'
@@ -582,8 +588,14 @@ declare namespace IDC {
     avgResolveTime: number; // 平均处理时间(分钟)
   }
 
+  interface BatchAlertOperationResult {
+    succeededIds: string[];
+    failed: Array<{ id: string; reason: string }>;
+  }
+
   /** 告警查询参数 */
   interface AlertQueryParams extends PageParams {
+    keyword?: string;
     level?: Alert['level'];
     type?: string;
     acknowledged?: boolean;

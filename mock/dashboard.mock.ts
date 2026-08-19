@@ -8,6 +8,44 @@ const waitTime = (time: number = 100) => {
     });
 };
 
+const minutesAgo = (minutes: number) =>
+    new Date(Date.now() - minutes * 60 * 1000).toISOString();
+
+const dashboardRecentAlerts: IDC.Alert[] = [
+    {
+        id: 'alert-001',
+        level: 'warning',
+        type: 'port_usage',
+        deviceId: 'dev-010',
+        deviceName: '核心交换机-B1',
+        message: '端口利用率超过80%',
+        createdAt: minutesAgo(18),
+        acknowledged: false,
+    },
+    {
+        id: 'alert-002',
+        level: 'info',
+        type: 'maintenance',
+        deviceId: 'dev-008',
+        deviceName: '核心存储-1',
+        message: '计划维护：存储系统固件升级',
+        createdAt: minutesAgo(75),
+        acknowledged: true,
+        acknowledgedAt: minutesAgo(62),
+        acknowledgedBy: '周存储',
+    },
+    {
+        id: 'alert-003',
+        level: 'warning',
+        type: 'warranty',
+        deviceId: 'dev-001',
+        deviceName: '核心交换机-A1',
+        message: '设备质保将于90天后到期',
+        createdAt: minutesAgo(130),
+        acknowledged: false,
+    },
+];
+
 // Mock 仪表板数据
 export default {
     // 获取仪表板统计数据
@@ -25,52 +63,7 @@ export default {
             errorDevices: 0,
             cabinetUsageRate: 0.78,
             uUsageRate: 0.65,
-            recentAlerts: [
-                {
-                    id: 'alert-001',
-                    level: 'warning',
-                    type: 'port_usage',
-                    deviceId: 'dev-010',
-                    deviceName: '核心交换机-B1',
-                    message: '端口利用率超过80%',
-                    createdAt: '2024-12-05T09:00:00Z',
-                    acknowledged: false,
-                },
-                {
-                    id: 'alert-002',
-                    level: 'info',
-                    type: 'maintenance',
-                    deviceId: 'dev-008',
-                    deviceName: '核心存储-1',
-                    message: '计划维护：存储系统固件升级',
-                    createdAt: '2024-12-04T14:30:00Z',
-                    acknowledged: true,
-                    acknowledgedAt: '2024-12-04T15:00:00Z',
-                    acknowledgedBy: '周存储',
-                },
-                {
-                    id: 'alert-003',
-                    level: 'warning',
-                    type: 'warranty',
-                    deviceId: 'dev-001',
-                    deviceName: '核心交换机-A1',
-                    message: '设备质保将于90天后到期',
-                    createdAt: '2024-12-03T08:00:00Z',
-                    acknowledged: false,
-                },
-                {
-                    id: 'alert-004',
-                    level: 'info',
-                    type: 'device_online',
-                    deviceId: 'dev-012',
-                    deviceName: 'GPU服务器-C1-1',
-                    message: '设备上线',
-                    createdAt: '2024-12-02T10:20:00Z',
-                    acknowledged: true,
-                    acknowledgedAt: '2024-12-02T10:25:00Z',
-                    acknowledgedBy: '钱AI',
-                },
-            ],
+            recentAlerts: dashboardRecentAlerts.map((alert) => ({ ...alert })),
         };
 
         res.json({ success: true, data: stats });
@@ -86,10 +79,10 @@ export default {
             date.setDate(date.getDate() - (Number(days) - 1 - i));
             return {
                 date: date.toISOString().split('T')[0],
-                online: 10 + Math.floor(Math.random() * 2),
-                offline: Math.floor(Math.random() * 2),
-                warning: Math.floor(Math.random() * 2),
-                error: 0,
+                online: 9 + (i % 3),
+                offline: i % 4 === 0 ? 1 : 0,
+                warning: i % 3 === 1 ? 2 : 1,
+                error: i === Number(days) - 2 ? 1 : 0,
             };
         });
 
@@ -182,7 +175,7 @@ export default {
                 operator: '钱AI',
                 target: 'GPU服务器-C1-1',
                 description: '设备上架',
-                createdAt: '2024-12-05T10:30:00Z',
+                createdAt: minutesAgo(12),
             },
             {
                 id: 'op-002',
@@ -190,7 +183,7 @@ export default {
                 operator: '张运维',
                 target: '接入交换机-A1-1 GE1/0/24',
                 description: 'VLAN配置变更: Access VLAN 100 -> 102',
-                createdAt: '2024-12-05T09:15:00Z',
+                createdAt: minutesAgo(48),
             },
             {
                 id: 'op-003',
@@ -198,7 +191,7 @@ export default {
                 operator: '张运维',
                 target: 'BJ-CAT6A-005',
                 description: '创建网络连线',
-                createdAt: '2024-12-04T16:20:00Z',
+                createdAt: minutesAgo(95),
             },
             {
                 id: 'op-004',
@@ -206,7 +199,7 @@ export default {
                 operator: '李运维',
                 target: '核心交换机-B1',
                 description: '更新设备管理IP',
-                createdAt: '2024-12-04T14:00:00Z',
+                createdAt: minutesAgo(180),
             },
             {
                 id: 'op-005',
@@ -214,7 +207,7 @@ export default {
                 operator: '王运维',
                 target: 'C区2排3号',
                 description: '新增机柜',
-                createdAt: '2024-12-03T11:00:00Z',
+                createdAt: minutesAgo(260),
             },
         ].slice(0, Number(limit));
 
@@ -224,7 +217,15 @@ export default {
     // 确认告警
     'POST /api/idc/dashboard/alerts/:id/acknowledge': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { id } = req.params;
+        const id = String(req.params.id);
+        const alert = dashboardRecentAlerts.find((item) => item.id === id);
+        if (!alert) {
+            res.status(404).json({ success: false, errorMessage: '告警不存在' });
+            return;
+        }
+        alert.acknowledged = true;
+        alert.acknowledgedAt = new Date().toISOString();
+        alert.acknowledgedBy = '当前值班员';
 
         res.json({
             success: true,
@@ -235,7 +236,7 @@ export default {
     // 获取拓扑数据
     'GET /api/idc/topology/:datacenterId': async (req: Request, res: Response) => {
         await waitTime(500);
-        const { datacenterId } = req.params;
+        const datacenterId = String(req.params.datacenterId);
 
         // 简化的拓扑数据
         const nodes = [

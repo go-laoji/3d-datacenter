@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getAlertActionableIds } from './alertPresentation';
+import {
+  getAlertActionableIds,
+  getAlertStatus,
+  getSlaPresentation,
+} from './alertPresentation';
 
 const createAlert = (
   id: string,
@@ -44,5 +48,22 @@ describe('getAlertActionableIds', () => {
       acknowledgeableIds: [],
       resolvableIds: [],
     });
+  });
+
+  it('presents breached and approaching SLA deadlines', () => {
+    const now = Date.parse('2026-08-20T02:00:00Z');
+    expect(getSlaPresentation('2026-08-20T01:50:00Z', now)).toEqual({
+      label: '已超时 10 分钟',
+      tone: 'error',
+    });
+    expect(getSlaPresentation('2026-08-20T02:25:00Z', now).tone).toBe(
+      'warning',
+    );
+  });
+
+  it('uses the explicit workflow status before legacy flags', () => {
+    const alert = createAlert('processing', { acknowledged: true });
+    alert.workflowStatus = 'processing';
+    expect(getAlertStatus(alert)).toBe('processing');
   });
 });

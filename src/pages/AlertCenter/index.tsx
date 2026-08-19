@@ -1,410 +1,161 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
+import { Alert, Button, message } from 'antd';
+import { History, Settings } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  Input,
-  Modal,
-  message,
-  Popconfirm,
-  Row,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Tooltip,
-} from 'antd';
-import {
-  AlertCircle,
-  AlertTriangle,
-  Bell,
-  Box,
-  Building2,
-  Check,
-  CheckCheck,
-  Clock,
-  Info,
-  Server,
-  Settings,
-  XCircle,
-} from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import {
-  acknowledgeAlert,
+  type AlertTransitionAction,
   batchAcknowledgeAlerts,
   batchResolveAlerts,
+  createAlertWorkOrder,
   getAlertStats,
   getAlerts,
-  resolveAlert,
+  transitionAlert,
 } from '@/services/idc/alert';
 import AlertDetailDrawer from './AlertDetailDrawer';
+import { getAlertActionableIds } from './alertPresentation';
+import { AlertMetricStrip } from './components/AlertMetricStrip';
+import { AlertOperationsTable } from './components/AlertOperationsTable';
 import {
-  alertLevelConfig,
-  alertTypeLabels,
-  getAlertActionableIds,
-} from './alertPresentation';
+  AlertTransitionModal,
+  type AlertTransitionValues,
+} from './components/AlertTransitionModal';
 import styles from './index.less';
 
-const { TextArea } = Input;
-
-// 告警级别图标
-const levelIcons: Record<string, React.ReactNode> = {
-  critical: <XCircle size={18} className={styles.levelCritical} />,
-  error: <AlertCircle size={18} className={styles.levelError} />,
-  warning: <AlertTriangle size={18} className={styles.levelWarning} />,
-  info: <Info size={18} className={styles.levelInfo} />,
-};
-
-const showBatchResult = (
-  actionLabel: string,
-  result: IDC.BatchAlertOperationResult,
-) => {
-  if (result.failed.length === 0) {
-    message.success(
-      `已批量${actionLabel} ${result.succeededIds.length} 条告警`,
-    );
-    return;
-  }
-  Modal.warning({
-    title: `批量${actionLabel}部分完成`,
-    content: (
-      <div>
-        <p>
-          成功 {result.succeededIds.length} 条，失败 {result.failed.length} 条。
-        </p>
-        <ul style={{ paddingLeft: 20 }}>
-          {result.failed.map((item) => (
-            <li key={item.id}>
-              {item.id}：{item.reason}
-            </li>
-          ))}
-        </ul>
-      </div>
-    ),
-  });
-};
-
-// 告警级别配置
-const AlertCenter: React.FC = () => {
+const AlertCenter = () => {
   const [searchParams] = useSearchParams();
-  const requestedDatacenterId = searchParams.get('datacenterId') || undefined;
-  const requestedAcknowledged = searchParams.get('acknowledged');
-  const [loading, setLoading] = useState(true);
+  const datacenterId = searchParams.get('datacenterId') || undefined;
+  const requestedAlertId = searchParams.get('alertId') || undefined;
   const [alerts, setAlerts] = useState<IDC.AlertDetail[]>([]);
   const [stats, setStats] = useState<IDC.AlertStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [current, setCurrent] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [selectedLevel, setSelectedLevel] = useState<string>('');
-  const [selectedAck, setSelectedAck] = useState<string>('');
-  const [selectedType, setSelectedType] = useState<string>('');
-  const [selectedRows, setSelectedRows] = useState<string[]>([]);
-  const [ackModalVisible, setAckModalVisible] = useState(false);
-  const [currentAlert, setCurrentAlert] = useState<IDC.AlertDetail | null>(
-    null,
-  );
+  const [level, setLevel] = useState<string>();
+  const [status, setStatus] = useState<string>();
+  const [type, setType] = useState<string>();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [detailAlert, setDetailAlert] = useState<IDC.AlertDetail>();
-  const [ackNotes, setAckNotes] = useState('');
+  const [transitionTarget, setTransitionTarget] = useState<{
+    alert: IDC.AlertDetail;
+    action: AlertTransitionAction;
+  }>();
   const [submitting, setSubmitting] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
-  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const { acknowledgeableIds, resolvableIds } = getAlertActionableIds(
-    alerts,
-    selectedRows,
+
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const [listResult, statsResult] = await Promise.all([
+          getAlerts({
+            current,
+            pageSize,
+            level: level as IDC.Alert['level'] | undefined,
+            type,
+            datacenterId,
+            workflowStatus: status as IDC.AlertDetail['workflowStatus'],
+          }),
+          getAlertStats(),
+        ]);
+        setAlerts(listResult.data || []);
+        setTotal(listResult.total || 0);
+        setStats(statsResult.data || null);
+        if (requestedAlertId) {
+          const requested = listResult.data?.find(
+            (item) => item.id === requestedAlertId,
+          );
+          if (requested) setDetailAlert(requested);
+        }
+      } catch (_error) {
+        if (!silent) message.error('告警队列加载失败');
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [current, datacenterId, level, pageSize, requestedAlertId, status, type],
   );
 
   useEffect(() => {
-    setSelectedAck(
-      requestedAcknowledged === 'true' || requestedAcknowledged === 'false'
-        ? requestedAcknowledged
-        : '',
-    );
-    setCurrent(1);
-    setSelectedRows([]);
-  }, [requestedAcknowledged, requestedDatacenterId]);
+    void load();
+    const timer = window.setInterval(() => void load(true), 30_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
-  // 自动刷新（30秒轮询）
-  useEffect(() => {
-    refreshTimerRef.current = setInterval(() => {
-      fetchData(true); // 静默刷新
-    }, 30000);
-    return () => {
-      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
-    };
-  }, [
-    current,
-    pageSize,
-    requestedDatacenterId,
-    selectedLevel,
-    selectedAck,
-    selectedType,
-  ]);
-
-  useEffect(() => {
-    fetchData();
-  }, [
-    current,
-    pageSize,
-    requestedDatacenterId,
-    selectedLevel,
-    selectedAck,
-    selectedType,
-  ]);
-
-  const fetchData = async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const [alertRes, statsRes] = await Promise.all([
-        getAlerts({
-          current,
-          pageSize,
-          level: selectedLevel as IDC.Alert['level'] | undefined,
-          acknowledged: selectedAck === '' ? undefined : selectedAck === 'true',
-          type: selectedType || undefined,
-          datacenterId: requestedDatacenterId,
-        }),
-        getAlertStats(),
-      ]);
-
-      if (alertRes.success && alertRes.data) {
-        setAlerts(alertRes.data);
-        setTotal(alertRes.total ?? 0);
-      }
-      if (statsRes.success && statsRes.data) {
-        setStats(statsRes.data);
-      }
-      setLastRefreshTime(new Date());
-    } catch (error) {
-      console.error('Failed to fetch alerts:', error);
-      if (!silent) message.error('获取告警数据失败');
-    } finally {
-      if (!silent) setLoading(false);
-    }
+  const updateAlertUrl = (alertId?: string) => {
+    const params = new URLSearchParams(window.location.search);
+    if (alertId) params.set('alertId', alertId);
+    else params.delete('alertId');
+    history.replace(`/monitor/alert?${params.toString()}`);
   };
 
-  const handleAcknowledge = async (alert: IDC.AlertDetail) => {
-    setCurrentAlert(alert);
-    setAckNotes('');
-    setAckModalVisible(true);
+  const openDetail = (alert: IDC.AlertDetail) => {
+    setDetailAlert(alert);
+    updateAlertUrl(alert.id);
   };
 
-  const handleAckSubmit = async () => {
-    if (!currentAlert) return;
-
+  const submitTransition = async (values: AlertTransitionValues) => {
+    if (!transitionTarget) return;
     setSubmitting(true);
     try {
-      const res = await acknowledgeAlert(currentAlert.id, ackNotes);
-      if (res.success) {
-        message.success('告警已确认');
-        setAckModalVisible(false);
-        void fetchData();
-      } else {
-        message.error(res.errorMessage || '确认失败');
-      }
-    } catch (_error) {
-      message.error('确认失败');
+      const response = await transitionAlert(transitionTarget.alert.id, {
+        action: transitionTarget.action,
+        ...values,
+      });
+      if (!response.success || !response.data)
+        throw new Error(response.errorMessage);
+      message.success('告警状态已更新');
+      setDetailAlert((currentAlert) =>
+        currentAlert?.id === response.data?.id ? response.data : currentAlert,
+      );
+      setTransitionTarget(undefined);
+      await load(true);
+    } catch (error) {
+      message.error(
+        error instanceof Error && error.message ? error.message : '操作失败',
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleResolve = async (alert: IDC.AlertDetail) => {
-    try {
-      const res = await resolveAlert(alert.id);
-      if (res.success) {
-        message.success('告警已解决');
-        void fetchData();
-      } else {
-        message.error(res.errorMessage || '操作失败');
-      }
-    } catch (_error) {
-      message.error('操作失败');
-    }
-  };
-
-  const handleBatchAcknowledge = async () => {
-    if (acknowledgeableIds.length === 0) {
-      message.warning('请选择要确认的告警');
+  const handleBatch = async (action: 'acknowledge' | 'close') => {
+    const actionable = getAlertActionableIds(alerts, selectedIds);
+    const ids =
+      action === 'acknowledge'
+        ? actionable.acknowledgeableIds
+        : actionable.resolvableIds;
+    if (!ids.length) {
+      message.warning(
+        action === 'acknowledge' ? '所选告警无需确认' : '所选告警当前不能关闭',
+      );
       return;
     }
-
-    try {
-      const res = await batchAcknowledgeAlerts(acknowledgeableIds);
-      if (res.success && res.data) {
-        showBatchResult('确认', res.data);
-        setSelectedRows([]);
-        void fetchData();
-      }
-    } catch (_error) {
-      message.error('批量确认失败');
+    const response =
+      action === 'acknowledge'
+        ? await batchAcknowledgeAlerts(ids)
+        : await batchResolveAlerts(ids);
+    if (response.success && response.data) {
+      message.success(
+        `成功处理 ${response.data.succeededIds.length} 条，失败 ${response.data.failed.length} 条`,
+      );
+      setSelectedIds([]);
+      await load(true);
     }
   };
 
-  const handleBatchResolve = async () => {
-    if (resolvableIds.length === 0) {
-      message.warning('请选择已确认且未解决的告警');
-      return;
-    }
-    try {
-      const res = await batchResolveAlerts(resolvableIds);
-      if (res.success && res.data) {
-        showBatchResult('解决', res.data);
-        setSelectedRows([]);
-        void fetchData();
-      }
-    } catch (_error) {
-      message.error('批量解决失败');
+  const handleCreateWorkOrder = async (alert: IDC.AlertDetail) => {
+    const response = await createAlertWorkOrder(alert.id);
+    if (response.success && response.data) {
+      message.success(`已创建工单 ${response.data.workOrderId}`);
+      await load(true);
+      setDetailAlert((currentAlert) =>
+        currentAlert
+          ? { ...currentAlert, workOrderId: response.data?.workOrderId }
+          : currentAlert,
+      );
     }
   };
-
-  // 格式化上次刷新时间
-  const formatLastRefresh = () => {
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - lastRefreshTime.getTime()) / 1000);
-    if (diff < 5) return '刚刚更新';
-    if (diff < 60) return `${diff}秒前更新`;
-    return `${Math.floor(diff / 60)}分钟前更新`;
-  };
-
-  const formatTime = (time: string) => {
-    const date = new Date(time);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-
-    if (diff < 60000) return '刚刚';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
-
-    return date.toLocaleString('zh-CN');
-  };
-
-  const columns = [
-    {
-      title: '级别',
-      dataIndex: 'level',
-      key: 'level',
-      width: 80,
-      render: (level: string) => (
-        <Tooltip title={alertLevelConfig[level as IDC.Alert['level']]?.text}>
-          {levelIcons[level]}
-        </Tooltip>
-      ),
-    },
-    {
-      title: '告警内容',
-      dataIndex: 'message',
-      key: 'message',
-      render: (_: any, record: IDC.AlertDetail) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{record.message}</div>
-          <div
-            style={{ color: 'rgba(0,0,0,0.45)', fontSize: 12, marginTop: 4 }}
-          >
-            <Space size={16}>
-              {record.deviceName && (
-                <span>
-                  <Server size={12} /> {record.deviceName}
-                </span>
-              )}
-              {record.cabinetName && (
-                <span>
-                  <Box size={12} /> {record.cabinetName}
-                </span>
-              )}
-              {record.datacenterName && (
-                <span>
-                  <Building2 size={12} /> {record.datacenterName}
-                </span>
-              )}
-            </Space>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '类型',
-      dataIndex: 'type',
-      key: 'type',
-      width: 100,
-      render: (type: string) => <Tag>{alertTypeLabels[type] || type}</Tag>,
-    },
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 150,
-      render: (time: string) => (
-        <Tooltip title={new Date(time).toLocaleString('zh-CN')}>
-          <span>
-            <Clock size={12} /> {formatTime(time)}
-          </span>
-        </Tooltip>
-      ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'acknowledged',
-      key: 'acknowledged',
-      width: 100,
-      render: (ack: boolean, record: IDC.AlertDetail) => {
-        if (record.resolvedAt) {
-          return (
-            <Tag color="success" icon={<CheckCheck size={12} />}>
-              已解决
-            </Tag>
-          );
-        }
-        return ack ? (
-          <Tooltip
-            title={`确认人: ${record.acknowledgedBy} | ${formatTime(record.acknowledgedAt || '')}`}
-          >
-            <Tag color="processing" icon={<Check size={12} />}>
-              已确认
-            </Tag>
-          </Tooltip>
-        ) : (
-          <Tag color="error">未确认</Tag>
-        );
-      },
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 180,
-      render: (_: any, record: IDC.AlertDetail) => (
-        <Space>
-          {!record.acknowledged && (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => handleAcknowledge(record)}
-            >
-              确认
-            </Button>
-          )}
-          {record.acknowledged && !record.resolvedAt && (
-            <Popconfirm
-              title="确认已解决该告警？"
-              onConfirm={() => handleResolve(record)}
-            >
-              <Button type="link" size="small">
-                解决
-              </Button>
-            </Popconfirm>
-          )}
-          <Button
-            type="link"
-            size="small"
-            onClick={() => setDetailAlert(record)}
-          >
-            详情
-          </Button>
-        </Space>
-      ),
-    },
-  ];
 
   return (
     <PageContainer
@@ -419,233 +170,77 @@ const AlertCenter: React.FC = () => {
         </Button>,
         <Button
           key="history"
+          icon={<History size={14} />}
           onClick={() => history.push('/monitor/alert/history')}
         >
           历史记录
         </Button>,
       ]}
     >
-      {(requestedDatacenterId || requestedAcknowledged !== null) && (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={
-            requestedDatacenterId
-              ? `已恢复站点上下文 ${requestedDatacenterId}`
-              : requestedAcknowledged === 'false'
-                ? '已定位全部待确认告警'
-                : '已按确认状态筛选告警'
-          }
-          description="告警列表已按 URL 上下文筛选，可继续叠加级别和类型条件。"
-          action={
+      <Alert
+        className={styles.workflowNotice}
+        type="info"
+        showIcon
+        message="统一告警状态机"
+        description="新告警 → 已确认 → 处理中 → 已恢复 → 已关闭；支持重开、误报、维护抑制、责任指派、SLA 升级和通知投递追踪。"
+        action={
+          datacenterId ? (
             <Button size="small" onClick={() => history.push('/monitor/alert')}>
-              清除定位
+              清除站点筛选
             </Button>
-          }
-        />
-      )}
-      {/* 统计卡片 */}
-      <Row gutter={16} className={styles.statsRow}>
-        <Col xs={12} sm={6}>
-          <Card className={`${styles.statCard} ${styles.critical}`}>
-            <XCircle className={styles.statIcon} />
-            <div className={styles.statValue}>{stats?.critical ?? '--'}</div>
-            <div className={styles.statLabel}>紧急告警</div>
-          </Card>
-        </Col>
-        <Col xs={12} sm={6}>
-          <Card className={`${styles.statCard} ${styles.error}`}>
-            <AlertCircle className={styles.statIcon} />
-            <div className={styles.statValue}>{stats?.error ?? '--'}</div>
-            <div className={styles.statLabel}>错误告警</div>
-          </Card>
-        </Col>
-        <Col xs={12} sm={6}>
-          <Card className={`${styles.statCard} ${styles.warning}`}>
-            <AlertTriangle className={styles.statIcon} />
-            <div className={styles.statValue}>{stats?.warning ?? '--'}</div>
-            <div className={styles.statLabel}>警告告警</div>
-          </Card>
-        </Col>
-        <Col xs={12} sm={6}>
-          <Card className={`${styles.statCard} ${styles.info}`}>
-            <Info className={styles.statIcon} />
-            <div className={styles.statValue}>
-              {stats?.unacknowledged ?? '--'}
-            </div>
-            <div className={styles.statLabel}>待处理</div>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 筛选和列表 */}
-      <Card
-        title={
-          <span>
-            <Bell size={16} /> 告警列表
-          </span>
+          ) : undefined
         }
-        className={styles.alertList}
-        extra={
-          <Space>
-            <Select
-              value={selectedLevel}
-              onChange={(value) => {
-                setCurrent(1);
-                setSelectedRows([]);
-                setSelectedLevel(value || '');
-              }}
-              style={{ width: 120 }}
-              placeholder="告警级别"
-              allowClear
-            >
-              <Select.Option value="critical">紧急</Select.Option>
-              <Select.Option value="error">错误</Select.Option>
-              <Select.Option value="warning">警告</Select.Option>
-              <Select.Option value="info">提示</Select.Option>
-            </Select>
-            <Select
-              value={selectedAck}
-              onChange={(value) => {
-                setCurrent(1);
-                setSelectedRows([]);
-                setSelectedAck(value || '');
-              }}
-              style={{ width: 120 }}
-              placeholder="处理状态"
-              allowClear
-            >
-              <Select.Option value="false">未确认</Select.Option>
-              <Select.Option value="true">已确认</Select.Option>
-            </Select>
-            <Select
-              value={selectedType}
-              onChange={(value) => {
-                setCurrent(1);
-                setSelectedRows([]);
-                setSelectedType(value || '');
-              }}
-              style={{ width: 120 }}
-              placeholder="告警类型"
-              allowClear
-            >
-              {Object.entries(alertTypeLabels).map(([key, label]) => (
-                <Select.Option key={key} value={key}>
-                  {label}
-                </Select.Option>
-              ))}
-            </Select>
-            {selectedRows.length > 0 && (
-              <>
-                <Button
-                  type="primary"
-                  disabled={acknowledgeableIds.length === 0}
-                  onClick={handleBatchAcknowledge}
-                >
-                  批量确认 ({acknowledgeableIds.length})
-                </Button>
-                <Button
-                  disabled={resolvableIds.length === 0}
-                  onClick={handleBatchResolve}
-                >
-                  批量解决 ({resolvableIds.length})
-                </Button>
-              </>
-            )}
-            <Tooltip title={formatLastRefresh()}>
-              <Button
-                icon={<Clock size={14} />}
-                onClick={() => fetchData()}
-                size="small"
-                type="text"
-              >
-                {formatLastRefresh()}
-              </Button>
-            </Tooltip>
-          </Space>
-        }
-      >
-        <Table
-          loading={loading}
-          columns={columns}
-          dataSource={alerts}
-          rowKey="id"
-          rowSelection={{
-            selectedRowKeys: selectedRows,
-            onChange: (keys) => setSelectedRows(keys as string[]),
-            getCheckboxProps: (record) => ({
-              disabled: Boolean(record.resolvedAt),
-            }),
-          }}
-          rowClassName={(record) =>
-            !record.acknowledged ? styles.unacknowledged : ''
-          }
-          pagination={{
-            current,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            onChange: (page, size) => {
-              setCurrent(page);
-              setPageSize(size);
-              setSelectedRows([]);
-            },
-          }}
-        />
-      </Card>
-
-      {/* 确认告警弹窗 */}
-      <Modal
-        title="确认告警"
-        open={ackModalVisible}
-        onCancel={() => setAckModalVisible(false)}
-        onOk={handleAckSubmit}
-        confirmLoading={submitting}
-      >
-        {currentAlert && (
-          <div>
-            <p>
-              <strong>告警内容：</strong>
-              {currentAlert.message}
-            </p>
-            {currentAlert.deviceName && (
-              <p>
-                <strong>设备：</strong>
-                {currentAlert.deviceName}
-              </p>
-            )}
-            <p>
-              <strong>时间：</strong>
-              {new Date(currentAlert.createdAt).toLocaleString('zh-CN')}
-            </p>
-            <div style={{ marginTop: 16 }}>
-              <p>
-                <strong>处理备注：</strong>
-              </p>
-              <TextArea
-                value={ackNotes}
-                onChange={(e) => setAckNotes(e.target.value)}
-                placeholder="请输入处理备注（可选）"
-                rows={3}
-              />
-            </div>
-          </div>
-        )}
-      </Modal>
-
+      />
+      <AlertMetricStrip
+        stats={stats}
+        onFilter={(value) => {
+          setCurrent(1);
+          setStatus(value);
+        }}
+      />
+      <AlertOperationsTable
+        alerts={alerts}
+        loading={loading}
+        total={total}
+        current={current}
+        pageSize={pageSize}
+        level={level}
+        status={status}
+        type={type}
+        selectedIds={selectedIds}
+        onFilterChange={(key, value) => {
+          setCurrent(1);
+          setSelectedIds([]);
+          if (key === 'level') setLevel(value);
+          if (key === 'status') setStatus(value);
+          if (key === 'type') setType(value);
+        }}
+        onPageChange={(page, size) => {
+          setCurrent(page);
+          setPageSize(size);
+          setSelectedIds([]);
+        }}
+        onSelectionChange={setSelectedIds}
+        onOpen={openDetail}
+        onTransition={(alert, action) => setTransitionTarget({ alert, action })}
+        onBatchAcknowledge={() => void handleBatch('acknowledge')}
+        onBatchClose={() => void handleBatch('close')}
+      />
       <AlertDetailDrawer
         alert={detailAlert}
-        onClose={() => setDetailAlert(undefined)}
-        onAcknowledge={(alert) => {
+        onClose={() => {
           setDetailAlert(undefined);
-          handleAcknowledge(alert);
+          updateAlertUrl();
         }}
-        onResolve={(alert) => {
-          setDetailAlert(undefined);
-          handleResolve(alert);
-        }}
+        onTransition={(alert, action) => setTransitionTarget({ alert, action })}
+        onCreateWorkOrder={(alert) => void handleCreateWorkOrder(alert)}
+      />
+      <AlertTransitionModal
+        alert={transitionTarget?.alert}
+        action={transitionTarget?.action}
+        loading={submitting}
+        onCancel={() => setTransitionTarget(undefined)}
+        onSubmit={(values) => void submitTransition(values)}
       />
     </PageContainer>
   );

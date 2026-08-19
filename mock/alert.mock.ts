@@ -124,6 +124,43 @@ const mockAlerts: IDC.AlertDetail[] = [
     },
 ];
 
+const workflowProfiles: Record<string, Partial<IDC.AlertDetail>> = {
+    'alert-001': {
+        workflowStatus: 'new', priority: 'P1', team: '北京 NOC', slaDueAt: '2026-08-19T17:40:00Z', escalationLevel: 2,
+        relatedAlertIds: ['alert-006'],
+        notificationDeliveries: [
+            { channel: '短信', target: '北京 NOC 值班组', status: 'delivered', sentAt: '2026-08-20T01:31:00Z' },
+            { channel: '电话', target: '一级值班', status: 'failed', sentAt: '2026-08-20T01:33:00Z' },
+        ],
+    },
+    'alert-002': { workflowStatus: 'acknowledged', acknowledged: true, acknowledgedAt: '2026-08-20T01:22:00Z', acknowledgedBy: '李运维', priority: 'P2', assignee: '李运维', team: '网络组', slaDueAt: '2026-08-20T03:00:00Z', escalationLevel: 0 },
+    'alert-003': { workflowStatus: 'processing', priority: 'P2', assignee: '张运维', team: '动力组', slaDueAt: '2026-08-20T04:00:00Z', escalationLevel: 1, workOrderId: 'WO-20260820-003' },
+    'alert-004': { workflowStatus: 'closed', priority: 'P1', assignee: '李运维', team: '服务器组', slaDueAt: '2026-08-20T02:10:00Z', escalationLevel: 0, workOrderId: 'WO-20260820-001' },
+    'alert-005': { workflowStatus: 'suppressed', priority: 'P3', assignee: '王运维', team: '容量组', slaDueAt: '2026-08-20T08:00:00Z', escalationLevel: 0, maintenanceWindow: '扩容变更 CHG-20260820-02 · 10:00-12:00' },
+    'alert-006': { workflowStatus: 'reopened', priority: 'P2', team: '上海 NOC', slaDueAt: '2026-08-20T02:30:00Z', escalationLevel: 1, relatedAlertIds: ['alert-001'] },
+};
+
+mockAlerts.forEach((alert, index) => {
+    Object.assign(alert, workflowProfiles[alert.id]);
+    alert.createdAt = new Date(Date.parse('2026-08-20T01:30:00Z') - index * 12 * 60_000).toISOString();
+    alert.timeline = [
+        {
+            id: `${alert.id}-created`,
+            type: 'created',
+            title: '告警产生',
+            actor: alert.ruleName || '系统检测',
+            occurredAt: alert.createdAt,
+            detail: alert.message,
+        },
+        ...(alert.acknowledgedAt
+            ? [{ id: `${alert.id}-ack`, type: 'acknowledged', title: '确认告警', actor: alert.acknowledgedBy || '值班员', occurredAt: alert.acknowledgedAt }]
+            : []),
+    ];
+    alert.notificationDeliveries ||= [
+        { channel: '企业微信', target: alert.team || '默认值班组', status: 'delivered', sentAt: alert.createdAt },
+    ];
+});
+
 // 模拟告警规则
 const mockRules: IDC.AlertRule[] = [
     {
@@ -238,6 +275,8 @@ export default {
             deviceId,
             cabinetId,
             datacenterId,
+            workflowStatus,
+            assignee,
         } = req.query;
 
         let filtered = [...mockAlerts];
@@ -260,6 +299,12 @@ export default {
         }
         if (datacenterId) {
             filtered = filtered.filter(a => a.datacenterId === String(datacenterId));
+        }
+        if (workflowStatus) {
+            filtered = filtered.filter(a => a.workflowStatus === String(workflowStatus));
+        }
+        if (assignee) {
+            filtered = filtered.filter(a => a.assignee === String(assignee));
         }
         if (keyword) {
             const normalizedKeyword = String(keyword).trim().toLowerCase();
@@ -289,7 +334,13 @@ export default {
         // 分页
         const start = (Number(current) - 1) * Number(pageSize);
         const end = start + Number(pageSize);
-        const data = filtered.slice(start, end);
+        const data = filtered
+            .sort((a, b) => {
+                const aBreached = a.slaDueAt && new Date(a.slaDueAt).getTime() < Date.now() ? 1 : 0;
+                const bBreached = b.slaDueAt && new Date(b.slaDueAt).getTime() < Date.now() ? 1 : 0;
+                return bBreached - aBreached || String(a.slaDueAt).localeCompare(String(b.slaDueAt));
+            })
+            .slice(start, end);
 
         res.json({
             success: true,
@@ -304,7 +355,7 @@ export default {
     'GET /api/idc/alerts/stats': async (_req: Request, res: Response) => {
         await waitTime(200);
 
-        const activeAlerts = mockAlerts.filter(alert => !alert.resolvedAt);
+        const activeAlerts = mockAlerts.filter(alert => !['closed', 'false_positive', 'suppressed'].includes(alert.workflowStatus || 'new'));
         const stats: IDC.AlertStats = {
             total: mockAlerts.length,
             critical: activeAlerts.filter(a => a.level === 'critical').length,
@@ -314,6 +365,9 @@ export default {
             unacknowledged: activeAlerts.filter(a => !a.acknowledged).length,
             todayNew: 3,
             avgResolveTime: 45,
+            slaBreached: activeAlerts.filter(a => a.slaDueAt && new Date(a.slaDueAt).getTime() < Date.now()).length,
+            unassigned: activeAlerts.filter(a => !a.assignee).length,
+            escalated: activeAlerts.filter(a => (a.escalationLevel || 0) > 0).length,
         };
 
         res.json({ success: true, data: stats });
@@ -339,6 +393,7 @@ export default {
             return;
         }
         alert.acknowledged = true;
+        alert.workflowStatus = 'acknowledged';
         alert.acknowledgedAt = new Date().toISOString();
         alert.acknowledgedBy = '当前用户';
         if (notes?.trim()) alert.notes = notes.trim();
@@ -366,10 +421,87 @@ export default {
             return;
         }
         alert.resolvedAt = new Date().toISOString();
+        alert.workflowStatus = 'closed';
         alert.resolvedBy = '当前用户';
         if (notes?.trim()) alert.notes = notes.trim();
 
         res.json({ success: true, message: `告警 ${id} 已解决` });
+    },
+
+    'POST /api/idc/alerts/:id/transition': async (req: Request, res: Response) => {
+        await waitTime(180);
+        const alert = mockAlerts.find(item => item.id === String(req.params.id));
+        if (!alert) {
+            res.status(404).json({ success: false, errorMessage: '告警不存在' });
+            return;
+        }
+        const { action, notes, assignee, team, maintenanceWindow } = req.body as {
+            action: string;
+            notes?: string;
+            assignee?: string;
+            team?: string;
+            maintenanceWindow?: string;
+        };
+        const transitions: Record<string, IDC.AlertDetail['workflowStatus']> = {
+            acknowledge: 'acknowledged', start: 'processing', recover: 'recovered', close: 'closed',
+            reopen: 'reopened', suppress: 'suppressed', false_positive: 'false_positive',
+        };
+        const allowed: Record<string, string[]> = {
+            acknowledge: ['new', 'reopened'], start: ['acknowledged'], recover: ['processing'],
+            close: ['recovered'], reopen: ['closed', 'suppressed', 'false_positive'], suppress: ['new', 'acknowledged', 'processing', 'reopened'],
+            false_positive: ['new', 'acknowledged', 'processing', 'reopened'], assign: ['new', 'acknowledged', 'processing', 'reopened'],
+        };
+        const currentStatus = alert.workflowStatus || 'new';
+        if (!allowed[action]?.includes(currentStatus)) {
+            res.status(409).json({ success: false, errorMessage: `${currentStatus} 状态不允许执行 ${action}` });
+            return;
+        }
+        if (action === 'assign') {
+            alert.assignee = assignee || alert.assignee;
+            alert.team = team || alert.team;
+        } else {
+            alert.workflowStatus = transitions[action];
+        }
+        if (action === 'acknowledge') {
+            alert.acknowledged = true;
+            alert.acknowledgedAt = new Date().toISOString();
+            alert.acknowledgedBy = assignee || '当前用户';
+            alert.assignee ||= assignee || '当前用户';
+        }
+        if (action === 'close') {
+            alert.resolvedAt = new Date().toISOString();
+            alert.resolvedBy = '当前用户';
+        }
+        if (action === 'reopen') alert.resolvedAt = undefined;
+        if (action === 'suppress') alert.maintenanceWindow = maintenanceWindow || '临时维护窗口 · 2 小时';
+        if (notes?.trim()) alert.notes = notes.trim();
+        alert.timeline ||= [];
+        const transitionLabels: Record<string, string> = {
+            acknowledge: '确认告警', start: '开始处理', recover: '标记恢复', close: '关闭告警',
+            reopen: '重新打开', suppress: '维护抑制', false_positive: '标记误报', assign: `指派给 ${alert.assignee}`,
+        };
+        alert.timeline.push({
+            id: `${alert.id}-${Date.now()}`,
+            type: action,
+            title: transitionLabels[action] || `状态变更为 ${alert.workflowStatus}`,
+            actor: '当前用户',
+            occurredAt: new Date().toISOString(),
+            detail: notes,
+        });
+        res.json({ success: true, data: alert });
+    },
+
+    'POST /api/idc/alerts/:id/work-order': async (req: Request, res: Response) => {
+        await waitTime(180);
+        const alert = mockAlerts.find(item => item.id === String(req.params.id));
+        if (!alert) {
+            res.status(404).json({ success: false, errorMessage: '告警不存在' });
+            return;
+        }
+        alert.workOrderId ||= `WO-20260820-${String(mockAlerts.indexOf(alert) + 10).padStart(3, '0')}`;
+        alert.timeline ||= [];
+        alert.timeline.push({ id: `${alert.id}-work-order`, type: 'work_order', title: `创建工单 ${alert.workOrderId}`, actor: '当前用户', occurredAt: new Date().toISOString() });
+        res.json({ success: true, data: { workOrderId: alert.workOrderId } });
     },
 
     // 批量确认告警
@@ -397,6 +529,7 @@ export default {
             }
 
             alert.acknowledged = true;
+            alert.workflowStatus = 'acknowledged';
             alert.acknowledgedAt = new Date().toISOString();
             alert.acknowledgedBy = '当前用户';
             result.succeededIds.push(id);
@@ -431,6 +564,7 @@ export default {
 
             alert.resolvedAt = new Date().toISOString();
             alert.resolvedBy = '当前用户';
+            alert.workflowStatus = 'closed';
             result.succeededIds.push(id);
         });
 

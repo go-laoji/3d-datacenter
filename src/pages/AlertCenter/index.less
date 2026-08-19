@@ -6,6 +6,64 @@
     }
 }
 
+.workflowNotice {
+    margin-bottom: 12px;
+}
+
+.metricStrip {
+    margin-bottom: 12px;
+}
+
+.metricButton {
+    display: flex;
+    width: 100%;
+    min-height: 72px;
+    padding: 8px 16px;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-right: 1px solid #f0f0f0;
+    cursor: pointer;
+    flex-direction: column;
+
+    strong {
+        font-size: 26px;
+        line-height: 34px;
+    }
+
+    &:focus-visible {
+        outline: 2px solid #1677ff;
+        outline-offset: -2px;
+    }
+}
+
+.alertLink {
+    height: auto;
+    max-width: 520px;
+    padding: 0;
+    overflow: hidden;
+    font-weight: 600;
+    white-space: normal;
+    text-align: left;
+}
+
+.slaBreachedRow {
+    background: #fff2f0;
+}
+
+@media (max-width: 768px) {
+    .metricButton {
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .alertList {
+        :global(.ant-card-head) {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+    }
+}
+
 .statsRow {
     margin-bottom: 16px;
 }

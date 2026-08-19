@@ -4,139 +4,150 @@ import {
   Button,
   Descriptions,
   Drawer,
-  Popconfirm,
+  List,
   Space,
   Tag,
   Timeline,
   Typography,
 } from 'antd';
-import { Box, Building2, Check, CheckCheck, Server } from 'lucide-react';
+import { Box, Building2, ClipboardPlus, Server } from 'lucide-react';
+import type { AlertTransitionAction } from '@/services/idc/alert';
 import {
   alertLevelConfig,
   alertSourceLabels,
+  alertStatusConfig,
   alertTypeLabels,
   formatAlertDateTime,
+  getAlertStatus,
+  getSlaPresentation,
+  isAlertTerminal,
 } from './alertPresentation';
 
-interface AlertDetailDrawerProps {
+interface Props {
   alert?: IDC.AlertDetail;
   onClose: () => void;
-  onAcknowledge: (alert: IDC.AlertDetail) => void;
-  onResolve: (alert: IDC.AlertDetail) => void;
+  onTransition: (alert: IDC.AlertDetail, action: AlertTransitionAction) => void;
+  onCreateWorkOrder: (alert: IDC.AlertDetail) => void;
 }
 
-const AlertDetailDrawer: React.FC<AlertDetailDrawerProps> = ({
+const primaryActions: Partial<
+  Record<
+    NonNullable<IDC.AlertDetail['workflowStatus']>,
+    { label: string; action: AlertTransitionAction }
+  >
+> = {
+  new: { label: '确认并接单', action: 'acknowledge' },
+  reopened: { label: '重新确认', action: 'acknowledge' },
+  acknowledged: { label: '开始处理', action: 'start' },
+  processing: { label: '标记恢复', action: 'recover' },
+  recovered: { label: '关闭告警', action: 'close' },
+  closed: { label: '重新打开', action: 'reopen' },
+};
+
+const AlertDetailDrawer = ({
   alert,
   onClose,
-  onAcknowledge,
-  onResolve,
-}) => {
-  const level = alert ? alertLevelConfig[alert.level] : undefined;
-  const timelineItems = alert
-    ? [
-        {
-          color: 'red',
-          children: (
-            <div>
-              <strong>告警产生</strong>
-              <div>{formatAlertDateTime(alert.createdAt)}</div>
-            </div>
-          ),
-        },
-        ...(alert.acknowledgedAt
-          ? [
-              {
-                color: 'blue',
-                dot: <Check size={14} />,
-                children: (
-                  <div>
-                    <strong>
-                      {alert.acknowledgedBy || '当前用户'}确认告警
-                    </strong>
-                    <div>{formatAlertDateTime(alert.acknowledgedAt)}</div>
-                  </div>
-                ),
-              },
-            ]
-          : []),
-        ...(alert.resolvedAt
-          ? [
-              {
-                color: 'green',
-                dot: <CheckCheck size={14} />,
-                children: (
-                  <div>
-                    <strong>{alert.resolvedBy || '当前用户'}解决告警</strong>
-                    <div>{formatAlertDateTime(alert.resolvedAt)}</div>
-                  </div>
-                ),
-              },
-            ]
-          : []),
-      ]
-    : [];
-
+  onTransition,
+  onCreateWorkOrder,
+}: Props) => {
+  const status = alert ? getAlertStatus(alert) : 'new';
+  const statusConfig = alertStatusConfig[status];
+  const primary = primaryActions[status];
+  const sla = getSlaPresentation(alert?.slaDueAt);
   return (
     <Drawer
-      title="告警详情"
+      title="告警诊断与处置"
       open={Boolean(alert)}
-      width={560}
+      width={680}
       onClose={onClose}
       extra={
-        alert ? (
+        alert && (
           <Space>
-            {!alert.acknowledged && (
-              <Button type="primary" onClick={() => onAcknowledge(alert)}>
-                确认告警
+            {primary && (
+              <Button
+                type="primary"
+                onClick={() => onTransition(alert, primary.action)}
+              >
+                {primary.label}
               </Button>
             )}
-            {alert.acknowledged && !alert.resolvedAt && (
-              <Popconfirm
-                title="确认已解决该告警？"
-                description="解决后会记录处置时间和当前用户。"
-                onConfirm={() => onResolve(alert)}
-              >
-                <Button type="primary">标记解决</Button>
-              </Popconfirm>
-            )}
+            <Button
+              icon={<ClipboardPlus size={14} />}
+              onClick={() => onCreateWorkOrder(alert)}
+            >
+              {alert.workOrderId || '创建工单'}
+            </Button>
           </Space>
-        ) : null
+        )
       }
     >
       {alert && (
-        <Space direction="vertical" size={20} style={{ width: '100%' }}>
+        <Space direction="vertical" size={18} style={{ width: '100%' }}>
           <div>
-            <Space style={{ marginBottom: 8 }}>
-              <Tag color={level?.color}>{level?.text}</Tag>
+            <Space wrap>
+              <Tag color={alertLevelConfig[alert.level].color}>
+                {alertLevelConfig[alert.level].text}
+              </Tag>
+              <Tag color={statusConfig.color}>{statusConfig.label}</Tag>
+              <Tag>{alert.priority || 'P3'}</Tag>
               <Tag>{alertTypeLabels[alert.type] || alert.type}</Tag>
               <Tag>{alertSourceLabels[alert.source]}</Tag>
             </Space>
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              {alert.message}
-            </Typography.Title>
+            <Typography.Title level={4}>{alert.message}</Typography.Title>
           </div>
 
+          <Alert
+            type={
+              sla.tone === 'error'
+                ? 'error'
+                : sla.tone === 'warning'
+                  ? 'warning'
+                  : 'info'
+            }
+            showIcon
+            message={`SLA ${sla.label}`}
+            description={`责任团队：${alert.team || '未分组'} · 责任人：${alert.assignee || '待指派'} · 升级等级：L${alert.escalationLevel || 0}`}
+            action={
+              !isAlertTerminal(alert) ? (
+                <Button
+                  size="small"
+                  onClick={() => onTransition(alert, 'assign')}
+                >
+                  调整责任人
+                </Button>
+              ) : undefined
+            }
+          />
+
           <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="告警编号" span={2}>
+            <Descriptions.Item label="告警编号">
               <Typography.Text copyable>{alert.id}</Typography.Text>
             </Descriptions.Item>
+            <Descriptions.Item label="规则">
+              {alert.ruleName || '系统内置检测'}
+            </Descriptions.Item>
             <Descriptions.Item label="触发值">
-              {alert.value ?? '-'}
+              {alert.value ?? '—'}
             </Descriptions.Item>
             <Descriptions.Item label="阈值">
-              {alert.threshold ?? '-'}
+              {alert.threshold ?? '—'}
             </Descriptions.Item>
-            <Descriptions.Item label="告警规则" span={2}>
-              {alert.ruleName || '系统内置检测'}
+            <Descriptions.Item label="SLA 截止">
+              {formatAlertDateTime(alert.slaDueAt)}
+            </Descriptions.Item>
+            <Descriptions.Item label="维护窗口">
+              {alert.maintenanceWindow || '无'}
+            </Descriptions.Item>
+            <Descriptions.Item label="工单" span={2}>
+              {alert.workOrderId || '尚未创建'}
             </Descriptions.Item>
           </Descriptions>
 
           <div>
             <Typography.Title level={5}>影响对象</Typography.Title>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space wrap>
               {alert.datacenterId && (
                 <Button
-                  block
                   icon={<Building2 size={14} />}
                   onClick={() =>
                     history.push(
@@ -144,31 +155,37 @@ const AlertDetailDrawer: React.FC<AlertDetailDrawerProps> = ({
                     )
                   }
                 >
-                  {alert.datacenterName || alert.datacenterId}
+                  {alert.datacenterName}
                 </Button>
               )}
               {alert.cabinetId && (
                 <Button
-                  block
                   icon={<Box size={14} />}
                   onClick={() =>
                     history.push(`/idc/cabinet?cabinetId=${alert.cabinetId}`)
                   }
                 >
-                  {alert.cabinetName || alert.cabinetId}
+                  {alert.cabinetName}
                 </Button>
               )}
               {alert.deviceId && (
                 <Button
-                  block
                   icon={<Server size={14} />}
                   onClick={() =>
                     history.push(`/idc/device?deviceId=${alert.deviceId}`)
                   }
                 >
-                  {alert.deviceName || alert.deviceId}
+                  {alert.deviceName}
                 </Button>
               )}
+              {alert.relatedAlertIds?.map((id) => (
+                <Button
+                  key={id}
+                  onClick={() => history.push(`/monitor/alert?alertId=${id}`)}
+                >
+                  关联告警 {id}
+                </Button>
+              ))}
             </Space>
           </div>
 
@@ -176,14 +193,71 @@ const AlertDetailDrawer: React.FC<AlertDetailDrawerProps> = ({
             <Alert
               type="info"
               showIcon
-              message="处理备注"
+              message="处置备注"
               description={alert.notes}
             />
           )}
 
           <div>
-            <Typography.Title level={5}>处理时间线</Typography.Title>
-            <Timeline items={timelineItems} />
+            <Typography.Title level={5}>通知投递</Typography.Title>
+            <List
+              size="small"
+              bordered
+              dataSource={alert.notificationDeliveries || []}
+              renderItem={(delivery) => (
+                <List.Item
+                  extra={
+                    <Tag
+                      color={
+                        delivery.status === 'delivered'
+                          ? 'success'
+                          : delivery.status === 'failed'
+                            ? 'error'
+                            : 'processing'
+                      }
+                    >
+                      {delivery.status === 'delivered'
+                        ? '已送达'
+                        : delivery.status === 'failed'
+                          ? '失败'
+                          : '发送中'}
+                    </Tag>
+                  }
+                >
+                  <List.Item.Meta
+                    title={`${delivery.channel} · ${delivery.target}`}
+                    description={formatAlertDateTime(delivery.sentAt)}
+                  />
+                </List.Item>
+              )}
+            />
+          </div>
+
+          <div>
+            <Typography.Title level={5}>升级与处置时间线</Typography.Title>
+            <Timeline
+              items={(alert.timeline || []).map((event) => ({
+                color:
+                  event.type === 'created'
+                    ? 'red'
+                    : event.type === 'close'
+                      ? 'green'
+                      : 'blue',
+                children: (
+                  <div>
+                    <strong>{event.title}</strong>
+                    <div>
+                      {event.actor} · {formatAlertDateTime(event.occurredAt)}
+                    </div>
+                    {event.detail && (
+                      <Typography.Text type="secondary">
+                        {event.detail}
+                      </Typography.Text>
+                    )}
+                  </div>
+                ),
+              }))}
+            />
           </div>
         </Space>
       )}

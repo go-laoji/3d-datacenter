@@ -23,6 +23,42 @@ export const alertSourceLabels: Record<IDC.AlertDetail['source'], string> = {
   rule: '规则触发',
 };
 
+export const alertStatusConfig: Record<
+  NonNullable<IDC.AlertDetail['workflowStatus']>,
+  { label: string; color: string }
+> = {
+  new: { label: '新告警', color: 'error' },
+  acknowledged: { label: '已确认', color: 'processing' },
+  processing: { label: '处理中', color: 'blue' },
+  recovered: { label: '已恢复', color: 'cyan' },
+  closed: { label: '已关闭', color: 'success' },
+  suppressed: { label: '维护抑制', color: 'default' },
+  false_positive: { label: '误报', color: 'purple' },
+  reopened: { label: '已重开', color: 'volcano' },
+};
+
+export const getAlertStatus = (
+  alert: IDC.AlertDetail,
+): NonNullable<IDC.AlertDetail['workflowStatus']> => {
+  if (alert.workflowStatus) return alert.workflowStatus;
+  if (alert.resolvedAt) return 'closed';
+  if (alert.acknowledged) return 'acknowledged';
+  return 'new';
+};
+
+export const getSlaPresentation = (slaDueAt?: string, now = Date.now()) => {
+  if (!slaDueAt) return { label: '未配置 SLA', tone: 'default' };
+  const minutes = Math.ceil((new Date(slaDueAt).getTime() - now) / 60_000);
+  if (minutes < 0) {
+    return { label: `已超时 ${Math.abs(minutes)} 分钟`, tone: 'error' };
+  }
+  if (minutes <= 30) return { label: `剩余 ${minutes} 分钟`, tone: 'warning' };
+  return { label: `剩余 ${minutes} 分钟`, tone: 'success' };
+};
+
+export const isAlertTerminal = (alert: IDC.AlertDetail) =>
+  ['closed', 'false_positive', 'suppressed'].includes(getAlertStatus(alert));
+
 export const formatAlertDateTime = (value?: string) =>
   value ? new Date(value).toLocaleString('zh-CN') : '-';
 
@@ -36,10 +72,14 @@ export const getAlertActionableIds = (
 
   return {
     acknowledgeableIds: selectedAlerts
-      .filter((alert) => !alert.acknowledged && !alert.resolvedAt)
+      .filter((alert) => ['new', 'reopened'].includes(getAlertStatus(alert)))
       .map((alert) => alert.id),
     resolvableIds: selectedAlerts
-      .filter((alert) => alert.acknowledged && !alert.resolvedAt)
+      .filter((alert) =>
+        ['acknowledged', 'processing', 'recovered'].includes(
+          getAlertStatus(alert),
+        ),
+      )
       .map((alert) => alert.id),
   };
 };

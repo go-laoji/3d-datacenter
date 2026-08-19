@@ -31,6 +31,39 @@ export async function resolveAlert(id: string, notes?: string) {
     });
 }
 
+export type AlertTransitionAction =
+  | 'acknowledge'
+  | 'start'
+  | 'recover'
+  | 'close'
+  | 'reopen'
+  | 'suppress'
+  | 'false_positive'
+  | 'assign';
+
+export async function transitionAlert(
+  id: string,
+  data: {
+    action: AlertTransitionAction;
+    notes?: string;
+    assignee?: string;
+    team?: string;
+    maintenanceWindow?: string;
+  },
+) {
+  return request<IDC.ApiResponse<IDC.AlertDetail>>(
+    `/api/idc/alerts/${id}/transition`,
+    { method: 'POST', data },
+  );
+}
+
+export async function createAlertWorkOrder(id: string) {
+  return request<IDC.ApiResponse<{ workOrderId: string }>>(
+    `/api/idc/alerts/${id}/work-order`,
+    { method: 'POST' },
+  );
+}
+
 /** 批量确认告警 */
 export async function batchAcknowledgeAlerts(ids: string[]) {
     return request<IDC.ApiResponse<IDC.BatchAlertOperationResult>>('/api/idc/alerts/batch-acknowledge', {

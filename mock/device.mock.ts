@@ -258,6 +258,19 @@ const getDatacenterIdByCabinet = (cabinetId: string) => {
     return undefined;
 };
 
+const getLifecycleStatus = (device: IDC.Device): IDC.DeviceLifecycleStatus => {
+    if (device.lifecycleStatus) return device.lifecycleStatus;
+    if (device.isMounted === false) return 'archived';
+    if (device.status === 'maintenance') return 'maintenance';
+    return 'mounted';
+};
+
+const decorateDevice = (device: IDC.Device): IDC.Device => ({
+    ...device,
+    lifecycleStatus: getLifecycleStatus(device),
+    isMounted: device.isMounted !== false,
+});
+
 const getUnmountImpact = (deviceId: string): IDC.DeviceUnmountImpact => {
     const connectionCounts: Record<string, number> = {
         'dev-001': 3,
@@ -306,6 +319,7 @@ export default {
             managementIp,
             department,
             isMounted,
+            lifecycleStatus,
         } = req.query;
 
         let filteredData = [...devices];
@@ -343,10 +357,15 @@ export default {
             const mounted = isMounted === 'true';
             filteredData = filteredData.filter(d => (d.isMounted !== false) === mounted);
         }
+        if (lifecycleStatus) {
+            filteredData = filteredData.filter(
+                device => getLifecycleStatus(device) === lifecycleStatus,
+            );
+        }
 
         const start = (Number(current) - 1) * Number(pageSize);
         const end = start + Number(pageSize);
-        const paginatedData = filteredData.slice(start, end);
+        const paginatedData = filteredData.slice(start, end).map(decorateDevice);
 
         res.json({
             success: true,
@@ -364,7 +383,7 @@ export default {
         const device = devices.find(d => d.id === id);
 
         if (device) {
-            res.json({ success: true, data: device });
+            res.json({ success: true, data: decorateDevice(device) });
         } else {
             res.status(404).json({ success: false, errorMessage: '设备不存在' });
         }
@@ -389,6 +408,7 @@ export default {
             managementIp: body.managementIp,
             status: 'online',
             isMounted: true,
+            lifecycleStatus: 'mounted',
             purchaseDate: body.purchaseDate,
             warrantyExpiry: body.warrantyExpiry,
             vendor: body.vendor,
@@ -400,7 +420,7 @@ export default {
         };
 
         devices.push(newDevice);
-        res.json({ success: true, data: newDevice });
+        res.json({ success: true, data: decorateDevice(newDevice) });
     },
 
     'POST /api/idc/devices/validate-mount': async (req: Request, res: Response) => {
@@ -535,7 +555,8 @@ export default {
         const hasDependencies =
             impact.connectionCount > 0 ||
             impact.powerConnectionCount > 0 ||
-            impact.activeAlertCount > 0;
+            impact.activeAlertCount > 0 ||
+            impact.openWorkOrderCount > 0;
         if (hasDependencies && !confirmDependencies) {
             res.status(409).json({
                 success: false,
@@ -547,8 +568,9 @@ export default {
 
         device.isMounted = false;
         device.status = 'offline';
+        device.lifecycleStatus = 'archived';
         device.updatedAt = new Date().toISOString();
-        res.json({ success: true, data: device });
+        res.json({ success: true, data: decorateDevice(device) });
     },
 
     // 删除设备（下架）
@@ -559,6 +581,14 @@ export default {
         const index = devices.findIndex(d => d.id === id);
         if (index === -1) {
             res.status(404).json({ success: false, errorMessage: '设备不存在' });
+            return;
+        }
+
+        if (getLifecycleStatus(devices[index]) !== 'archived') {
+            res.status(409).json({
+                success: false,
+                errorMessage: '仅允许永久删除已归档资产',
+            });
             return;
         }
 

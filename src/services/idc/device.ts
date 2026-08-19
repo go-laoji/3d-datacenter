@@ -13,6 +13,7 @@ export async function getDevices(
         managementIp?: string;
         department?: string;
         isMounted?: string; // "true" / "false" / ""
+        lifecycleStatus?: IDC.DeviceLifecycleStatus;
     },
 ) {
     return request<IDC.PageResult<IDC.Device>>('/api/idc/devices', {

@@ -13,8 +13,9 @@ import {
   Alert,
   Badge,
   Button,
+  Dropdown,
+  Modal,
   message,
-  Popconfirm,
   Space,
   Tag,
   Tooltip,
@@ -25,6 +26,7 @@ import {
   CheckCircle,
   Edit3,
   Eye,
+  MoreHorizontal,
   Network,
   PackageMinus,
   Plus,
@@ -48,6 +50,11 @@ import {
 import { getAllDeviceTemplates } from '@/services/idc/deviceTemplate';
 import DeviceDetailDrawer from './components/DeviceDetailDrawer';
 import DeviceUnmountModal from './components/DeviceUnmountModal';
+import {
+  canPermanentlyDeleteDevice,
+  getDeviceLifecycleStatus,
+  lifecycleConfig,
+} from './devicePresentation';
 
 const statusConfig: Record<
   string,
@@ -566,19 +573,24 @@ const DevicePage: React.FC = () => {
       },
     },
     {
-      title: '架设状态',
-      dataIndex: 'isMounted',
-      width: 90,
+      title: '生命周期',
+      dataIndex: 'lifecycleStatus',
+      width: 110,
       valueType: 'select',
-      valueEnum: {
-        true: { text: '已上架', status: 'Success' },
-        false: { text: '已下架', status: 'Default' },
-      },
-      render: (_, record) => (
-        <Tag color={record.isMounted !== false ? 'green' : 'default'}>
-          {record.isMounted !== false ? '已上架' : '已下架'}
-        </Tag>
+      valueEnum: Object.fromEntries(
+        Object.entries(lifecycleConfig).map(([key, value]) => [
+          key,
+          { text: value.text },
+        ]),
       ),
+      render: (_, record) => {
+        const lifecycle = getDeviceLifecycleStatus(record);
+        return (
+          <Tag color={lifecycleConfig[lifecycle].color}>
+            {lifecycleConfig[lifecycle].text}
+          </Tag>
+        );
+      },
     },
     {
       title: '质保到期',
@@ -615,79 +627,87 @@ const DevicePage: React.FC = () => {
     {
       title: '操作',
       valueType: 'option',
-      width: 180,
+      width: 160,
       fixed: 'right',
-      render: (_, record) => [
-        <Tooltip key="ports" title="查看端口使用情况">
+      render: (_, record) => (
+        <Space size={0}>
           <Button
             type="link"
             size="small"
-            icon={<Cable size={14} />}
+            icon={<Eye size={14} />}
             onClick={() => {
-              setPortViewDevice(record);
-              setPortViewOpen(true);
+              setCurrentRow(record);
+              setDetailDrawerOpen(true);
             }}
           >
-            端口
+            详情
           </Button>
-        </Tooltip>,
-        <Button
-          key="view"
-          type="link"
-          size="small"
-          icon={<Eye size={14} />}
-          onClick={() => {
-            setCurrentRow(record);
-            setDetailDrawerOpen(true);
-          }}
-        >
-          详情
-        </Button>,
-        <Button
-          key="edit"
-          type="link"
-          size="small"
-          icon={<Edit3 size={14} />}
-          onClick={() => {
-            setCurrentRow(record);
-            setEditModalOpen(true);
-          }}
-        >
-          编辑
-        </Button>,
-        <Tooltip
-          key="unmount"
-          title={
-            record.isMounted === false ? '设备已下架' : '下架并保留资产记录'
-          }
-        >
-          <Button
-            type="link"
-            size="small"
-            icon={<PackageMinus size={14} />}
-            disabled={record.isMounted === false}
-            onClick={() => setUnmountTarget(record)}
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'ports', icon: <Cable size={14} />, label: '端口' },
+                { key: 'edit', icon: <Edit3 size={14} />, label: '编辑' },
+                {
+                  key: 'unmount',
+                  icon: <PackageMinus size={14} />,
+                  label: '下架',
+                  disabled: record.isMounted === false,
+                },
+                { type: 'divider' },
+                {
+                  key: 'delete',
+                  icon: <Trash2 size={14} />,
+                  label: canPermanentlyDeleteDevice(record)
+                    ? '永久删除'
+                    : '永久删除（仅归档资产）',
+                  danger: true,
+                  disabled: !canPermanentlyDeleteDevice(record),
+                },
+              ],
+              onClick: ({ key }) => {
+                if (key === 'ports') {
+                  setPortViewDevice(record);
+                  setPortViewOpen(true);
+                  return;
+                }
+                if (key === 'edit') {
+                  setCurrentRow(record);
+                  setEditModalOpen(true);
+                  return;
+                }
+                if (key === 'unmount') {
+                  setUnmountTarget(record);
+                  return;
+                }
+                Modal.confirm({
+                  title: '永久删除已归档资产？',
+                  content: '永久删除后无法恢复，仅高权限管理员可执行。',
+                  okText: '永久删除',
+                  okButtonProps: { danger: true },
+                  cancelText: '取消',
+                  onOk: async () => {
+                    const response = await deleteDevice(record.id);
+                    if (!response.success) {
+                      message.error(response.errorMessage || '删除失败');
+                      return Promise.reject();
+                    }
+                    message.success('已归档资产被永久删除');
+                    actionRef.current?.reload();
+                  },
+                });
+              },
+            }}
           >
-            下架
-          </Button>
-        </Tooltip>,
-        <Popconfirm
-          key="delete"
-          title="确定要删除这个设备吗？"
-          description="删除后数据将无法恢复。"
-          onConfirm={async () => {
-            const res = await deleteDevice(record.id);
-            if (res.success) {
-              message.success('设备已删除');
-              actionRef.current?.reload();
-            }
-          }}
-        >
-          <Button type="link" size="small" danger icon={<Trash2 size={14} />}>
-            删除
-          </Button>
-        </Popconfirm>,
-      ],
+            <Button
+              type="link"
+              size="small"
+              icon={<MoreHorizontal size={14} />}
+            >
+              更多
+            </Button>
+          </Dropdown>
+        </Space>
+      ),
     },
   ];
 
@@ -740,6 +760,8 @@ const DevicePage: React.FC = () => {
             assetCode: params.assetCode,
             managementIp: params.managementIp,
             department: params.department,
+            isMounted: params.isMounted,
+            lifecycleStatus: params.lifecycleStatus,
           });
           const deepLinkedDevice = requestedDeviceId
             ? res.data?.[0]
@@ -804,6 +826,33 @@ const DevicePage: React.FC = () => {
           } as unknown as IDC.DeviceCreateParams);
           if (res.success) {
             message.success('设备上架成功');
+            if (res.data) {
+              const createdDeviceId = res.data.id;
+              Modal.success({
+                title: '设备已上架，继续完善关系',
+                content: (
+                  <Space wrap style={{ marginTop: 12 }}>
+                    <Button
+                      onClick={() =>
+                        history.push(
+                          `/network/port?deviceId=${createdDeviceId}`,
+                        )
+                      }
+                    >
+                      配置端口
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        history.push(`/power?deviceId=${createdDeviceId}`)
+                      }
+                    >
+                      配置 A/B 路电源
+                    </Button>
+                  </Space>
+                ),
+                okText: '稍后处理',
+              });
+            }
             actionRef.current?.reload();
             return true;
           }

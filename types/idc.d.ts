@@ -170,6 +170,15 @@ declare namespace IDC {
 
   // ==================== 设备 ====================
 
+  /** 设备资产生命周期 */
+  type DeviceLifecycleStatus =
+    | 'inventory'
+    | 'pending_mount'
+    | 'mounted'
+    | 'maintenance'
+    | 'pending_unmount'
+    | 'archived';
+
   /** 设备实例 */
   interface Device {
     id: string;
@@ -190,6 +199,7 @@ declare namespace IDC {
     owner?: string; // 负责人
     department?: string; // 所属部门
     isMounted?: boolean; // 是否已上架
+    lifecycleStatus?: DeviceLifecycleStatus;
     description?: string;
     createdAt: string;
     updatedAt: string;

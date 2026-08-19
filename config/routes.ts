@@ -195,6 +195,12 @@ export default [
       },
     ],
   },
+  {
+    path: '/reports',
+    name: 'reports',
+    icon: 'barChart',
+    component: './Reports',
+  },
 
   {
     path: '/403',

@@ -77,4 +77,5 @@ export default {
   'menu.operations': '事件与协作',
   'menu.operations.notifications': '通知与值班',
   'menu.operations.work-orders': '工单与变更',
+  'menu.reports': '运营报表',
 };

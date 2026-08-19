@@ -70,4 +70,6 @@ export default {
   'menu.monitor.alert.rules': '告警规则',
   'menu.monitor.alert.history': '告警历史',
   'menu.power': '电源管理',
+  'menu.system': '系统治理',
+  'menu.system.access': '用户与权限',
 };

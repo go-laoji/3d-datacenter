@@ -154,6 +154,19 @@ export default [
       },
     ],
   },
+  {
+    path: '/system',
+    name: 'system',
+    icon: 'setting',
+    routes: [
+      { path: '/system', redirect: '/system/access' },
+      {
+        path: '/system/access',
+        name: 'access',
+        component: './Access',
+      },
+    ],
+  },
 
   {
     path: '/403',

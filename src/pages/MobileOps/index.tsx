@@ -1,4 +1,4 @@
-import { history } from '@umijs/max';
+import { history, Link } from '@umijs/max';
 import {
   App,
   Button,
@@ -174,25 +174,24 @@ export default function MobileOpsPage() {
           </Button>
         </div>
         {workOrders.slice(0, 4).map((item) => (
-          <Card
+          <Link
             key={item.id}
-            size="small"
-            className={styles.workCard}
-            onClick={() =>
-              history.push(`/operations/work-orders?workOrderId=${item.id}`)
-            }
-            hoverable
+            className={styles.workCardLink}
+            to={`/operations/work-orders?workOrderId=${item.id}`}
+            aria-label={`查看工单：${item.title}`}
           >
-            <div className={styles.cardHeader}>
-              <div>
-                <strong>{item.title}</strong>
-                <div className={styles.cardMeta}>
-                  {item.assignee} · SLA {dayjs(item.slaDueAt).format('HH:mm')}
+            <Card size="small" className={styles.workCard} hoverable>
+              <div className={styles.cardHeader}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <div className={styles.cardMeta}>
+                    {item.assignee} · SLA {dayjs(item.slaDueAt).format('HH:mm')}
+                  </div>
                 </div>
+                <EntityStatus status={item.status} />
               </div>
-              <EntityStatus status={item.status} />
-            </div>
-          </Card>
+            </Card>
+          </Link>
         ))}
       </section>
       <nav className={styles.bottomNav} aria-label="移动值班导航">

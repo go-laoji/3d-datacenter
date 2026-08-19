@@ -12,7 +12,6 @@ import {
 } from 'antd';
 import { Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { EntityLink } from '@/components/operations';
 import type { AccessRole, AccessSnapshot } from '@/services/platform';
 import { groupPermissions } from './accessModel';
 
@@ -43,21 +42,27 @@ export function AccessRoles({
           bordered
           dataSource={snapshot.roles}
           renderItem={(item) => (
-            <List.Item
-              onClick={() => setRole(item)}
-              style={{
-                cursor: 'pointer',
-                background: role.id === item.id ? '#e6f4ff' : undefined,
-              }}
-            >
-              <List.Item.Meta
-                title={
-                  <EntityLink type="role" id={item.id}>
-                    {item.name}
-                  </EntityLink>
-                }
-                description={`${item.memberCount} 名成员 · ${item.description}`}
-              />
+            <List.Item style={{ padding: 0 }}>
+              <button
+                type="button"
+                onClick={() => setRole(item)}
+                aria-pressed={role.id === item.id}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: 0,
+                  background: role.id === item.id ? '#e6f4ff' : '#fff',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <strong style={{ display: 'block', color: '#1677ff' }}>
+                  {item.name}
+                </strong>
+                <span style={{ color: '#64748b', fontSize: 13 }}>
+                  {item.memberCount} 名成员 · {item.description}
+                </span>
+              </button>
             </List.Item>
           )}
         />

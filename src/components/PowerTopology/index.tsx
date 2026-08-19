@@ -74,8 +74,12 @@ const TopologyNode: React.FC<{
         </div>
       }
     >
-      <div
+      <button
+        type="button"
         onClick={() => onClick?.(node)}
+        aria-label={`查看${node.name}，状态${node.status}${
+          loadPercent === null ? '' : `，负载${loadPercent}%`
+        }`}
         style={{
           position: 'absolute',
           left: position.x,
@@ -87,6 +91,7 @@ const TopologyNode: React.FC<{
           borderRadius: 8,
           cursor: 'pointer',
           textAlign: 'center',
+          font: 'inherit',
           transition: 'transform 0.2s, box-shadow 0.2s',
         }}
         onMouseEnter={(e) => {
@@ -124,7 +129,7 @@ const TopologyNode: React.FC<{
             </Tag>
           )}
         </Space>
-      </div>
+      </button>
     </Tooltip>
   );
 };

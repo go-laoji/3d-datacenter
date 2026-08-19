@@ -215,7 +215,7 @@ export const MeasurementController: React.FC<{
   enabled: boolean;
   onAddPoint: (position: [number, number, number]) => void;
 }> = ({ enabled, onAddPoint }) => {
-  const { camera, scene, pointer, raycaster } = useThree();
+  const { camera, scene, raycaster } = useThree();
 
   useEffect(() => {
     if (!enabled) return;
@@ -268,14 +268,6 @@ export const MeasurementController: React.FC<{
 };
 
 // ==================== 测量工具 ====================
-
-interface MeasurementToolProps {
-  enabled: boolean;
-  measurements: MeasurementLine[];
-  onAddMeasurement: (line: MeasurementLine) => void;
-  onRemoveMeasurement: (id: string) => void;
-  onClearAll: () => void;
-}
 
 /**
  * 测量线渲染器
@@ -332,7 +324,9 @@ export const MeasurementLineRenderer: React.FC<{
         >
           <span>{measurement.distance.toFixed(2)}m</span>
           <button
+            type="button"
             onClick={() => onRemove(measurement.id)}
+            aria-label={`删除 ${measurement.distance.toFixed(2)} 米的测量结果`}
             style={{
               background: 'rgba(255,255,255,0.2)',
               border: 'none',
@@ -374,13 +368,6 @@ export const MeasurementManager: React.FC<{
 };
 
 // ==================== 测量点选择器 ====================
-
-interface MeasurementPointSelectorProps {
-  enabled: boolean;
-  pendingPoint: MeasurementPoint | null;
-  onPointSelect: (point: MeasurementPoint) => void;
-  onCancel: () => void;
-}
 
 /**
  * 测量点选择提示
@@ -507,6 +494,7 @@ export const BatchOperationPanel: React.FC<BatchOperationPanelProps> = ({
       />
 
       <button
+        type="button"
         onClick={() =>
           onOperation({
             type: 'status_change',
@@ -520,6 +508,7 @@ export const BatchOperationPanel: React.FC<BatchOperationPanelProps> = ({
       </button>
 
       <button
+        type="button"
         onClick={() => onOperation({ type: 'export', targetIds: selectedIds })}
         style={buttonStyle}
       >
@@ -527,6 +516,7 @@ export const BatchOperationPanel: React.FC<BatchOperationPanelProps> = ({
       </button>
 
       <button
+        type="button"
         onClick={onClearSelection}
         style={{ ...buttonStyle, background: 'rgba(255,77,79,0.8)' }}
       >
@@ -624,8 +614,11 @@ const ToolButton: React.FC<{
   badge?: string;
 }> = ({ icon, label, active, onClick, badge }) => (
   <button
+    type="button"
     onClick={onClick}
     title={label}
+    aria-label={badge ? `${label}，${badge}` : label}
+    aria-pressed={active}
     style={{
       width: 40,
       height: 40,

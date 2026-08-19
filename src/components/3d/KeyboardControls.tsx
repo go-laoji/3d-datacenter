@@ -85,7 +85,7 @@ export const KeyboardController: React.FC<KeyboardControllerProps> = ({
   onEscape,
   onPresetView,
 }) => {
-  const { camera, gl } = useThree();
+  const { camera } = useThree();
   const keyState = useRef<KeyState>({ ...initialKeyState });
   const moveSpeed = config?.moveSpeed ?? 0.1;
   const enabled = config?.enabled ?? true;
@@ -277,6 +277,9 @@ export const ShortcutHelpPanel: React.FC<ShortcutHelpPanelProps> = ({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="keyboard-shortcuts-title"
       style={{
         position: 'fixed',
         top: '50%',
@@ -299,9 +302,13 @@ export const ShortcutHelpPanel: React.FC<ShortcutHelpPanelProps> = ({
           marginBottom: 16,
         }}
       >
-        <h3 style={{ margin: 0, fontSize: 18 }}>⌨️ 快捷键</h3>
+        <h3 id="keyboard-shortcuts-title" style={{ margin: 0, fontSize: 18 }}>
+          ⌨️ 快捷键
+        </h3>
         <button
+          type="button"
           onClick={onClose}
+          aria-label="关闭快捷键说明"
           style={{
             background: 'transparent',
             border: 'none',

@@ -15,14 +15,42 @@ export interface PDUDevice {
     pduData: {
         powerPath: 'A' | 'B';
         inputVoltage: number;
+        inputCurrent?: number;
+        phase?: 'L1' | 'L2' | 'L3';
         outputPorts: number;
         maxLoad: number;
         currentLoad: number;
+        peakLoad?: number;
+        loadThreshold?: number;
         brand?: string;
         model?: string;
     };
+    metric: {
+        collectedAt: string;
+        source: string;
+        quality: 'good' | 'delayed' | 'estimated' | 'invalid';
+    };
+    outlets: PDUOutlet[];
+    loadTrend: PDULoadPoint[];
     createdAt?: string;
     updatedAt?: string;
+}
+
+export interface PDUOutlet {
+    id: string;
+    number: number;
+    phase: 'L1' | 'L2' | 'L3';
+    status: 'on' | 'off' | 'warning';
+    current: number;
+    deviceId?: string;
+    deviceName?: string;
+}
+
+export interface PDULoadPoint {
+    time: string;
+    load: number;
+    comparison: number;
+    isPeak?: boolean;
 }
 
 // PDU设备模板
@@ -38,12 +66,17 @@ export interface PDUTemplate {
         maxLoad: string;
         ratedCurrent: string;
     };
+    phases: Array<'L1' | 'L2' | 'L3'>;
+    defaultThreshold: number;
 }
 
 // 获取PDU设备列表
 export async function getPDUDevices(params?: {
     cabinetId?: string;
     powerPath?: 'A' | 'B';
+    status?: PDUDevice['status'];
+    risk?: 'highLoad' | 'singlePath' | 'stale';
+    keyword?: string;
 }) {
     return request<{
         success: boolean;

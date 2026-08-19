@@ -1,102 +1,106 @@
-﻿// @ts-ignore
-import { startMock } from '@@/requestRecordMock';
-import { TestBrowser } from '@@/testBrowser';
-import { fireEvent, render } from '@testing-library/react';
-import React, { act } from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { App as AntdApp } from 'antd';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import Login from './index';
 
-const waitTime = (time: number = 100) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(true);
-    }, time);
-  });
-};
+const mocks = vi.hoisted(() => ({
+  fetchUserInfo: vi.fn(),
+  login: vi.fn(),
+  replace: vi.fn(),
+  setInitialState: vi.fn(),
+  setSession: vi.fn(),
+}));
 
-let server: {
-  close: () => void;
-};
+vi.mock('@umijs/max', () => ({
+  FormattedMessage: ({ defaultMessage }: { defaultMessage: string }) =>
+    defaultMessage,
+  Helmet: () => null,
+  history: { replace: mocks.replace },
+  useIntl: () => ({
+    formatMessage: ({
+      defaultMessage,
+      id,
+    }: {
+      defaultMessage?: string;
+      id: string;
+    }) => defaultMessage || id,
+  }),
+  useModel: () => ({
+    initialState: { fetchUserInfo: mocks.fetchUserInfo },
+    setInitialState: mocks.setInitialState,
+  }),
+}));
 
-describe('Login Page', () => {
-  beforeAll(async () => {
-    server = await startMock({
-      port: 8000,
-      scene: 'login',
+vi.mock('@/components', () => ({ Footer: () => null }));
+vi.mock('@/services/ant-design-pro/api', () => ({ login: mocks.login }));
+vi.mock('@/utils/session', () => ({ setSession: mocks.setSession }));
+
+const renderLogin = () =>
+  render(
+    <AntdApp>
+      <Login />
+    </AntdApp>,
+  );
+
+describe('Login page', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, '', '/user/login');
+    mocks.fetchUserInfo.mockResolvedValue({
+      name: 'Mock administrator',
+      userid: 'admin',
     });
   });
 
-  afterAll(() => {
-    server?.close();
-  });
+  it('shows a focused Mock identity form without exposing demo credentials', () => {
+    renderLogin();
 
-  it('should show login form', async () => {
-    const historyRef = React.createRef<any>();
-    const rootContainer = render(
-      <TestBrowser
-        historyRef={historyRef}
-        location={{
-          pathname: '/user/login',
-        }}
-      />,
-    );
-
-    await rootContainer.findAllByText('Ant Design');
-
-    act(() => {
-      historyRef.current?.push('/user/login');
-    });
-
+    expect(screen.getByText('TDDC 数字孪生机房')).toBeInTheDocument();
     expect(
-      rootContainer.baseElement?.querySelector('.ant-pro-form-login-desc')
-        ?.textContent,
-    ).toBe(
-      'Ant Design is the most influential web design specification in Xihu district',
-    );
-
-    expect(rootContainer.asFragment()).toMatchSnapshot();
-
-    rootContainer.unmount();
+      screen.getByText('空间、资产、网络、动环与告警统一运维'),
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('请输入用户名')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('请输入密码')).toBeInTheDocument();
+    expect(screen.queryByText(/admin\/ant\.design/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('忘记密码')).not.toBeInTheDocument();
   });
 
-  it('should login success', async () => {
-    const historyRef = React.createRef<any>();
-    const rootContainer = render(
-      <TestBrowser
-        historyRef={historyRef}
-        location={{
-          pathname: '/user/login',
-        }}
-      />,
+  it('stores the complete session and rejects an external redirect target', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/user/login?redirect=https%3A%2F%2Fevil.example',
     );
-
-    await rootContainer.findAllByText('Ant Design');
-
-    const userNameInput = await rootContainer.findByPlaceholderText(
-      'Username: admin or user',
-    );
-
-    act(() => {
-      fireEvent.change(userNameInput, { target: { value: 'admin' } });
+    mocks.login.mockResolvedValue({
+      status: 'ok',
+      token: 'access-token',
+      refreshToken: 'refresh-token',
+      expiresAt: 2_000_000_000_000,
     });
+    renderLogin();
 
-    const passwordInput = await rootContainer.findByPlaceholderText(
-      'Password: ant.design',
-    );
-
-    act(() => {
-      fireEvent.change(passwordInput, { target: { value: 'ant.design' } });
+    fireEvent.change(screen.getByPlaceholderText('请输入用户名'), {
+      target: { value: 'admin' },
     });
+    fireEvent.change(screen.getByPlaceholderText('请输入密码'), {
+      target: { value: 'password' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /登\s*录/ }));
 
-    await (await rootContainer.findByText('Login')).click();
-
-    // 等待接口返回结果
-    await waitTime(5000);
-
-    await rootContainer.findAllByText('Ant Design Pro');
-
-    expect(rootContainer.asFragment()).toMatchSnapshot();
-
-    await waitTime(2000);
-
-    rootContainer.unmount();
+    await waitFor(() => {
+      expect(mocks.login).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'admin',
+          password: 'password',
+          type: 'account',
+        }),
+      );
+      expect(mocks.setSession).toHaveBeenCalledWith({
+        token: 'access-token',
+        refreshToken: 'refresh-token',
+        expiresAt: 2_000_000_000_000,
+      });
+      expect(mocks.replace).toHaveBeenCalledWith('/dashboard');
+    });
   });
 });

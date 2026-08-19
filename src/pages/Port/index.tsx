@@ -61,9 +61,10 @@ const PortPage: React.FC = () => {
 
   const syncUrl = (values: Record<string, string | undefined>) => {
     const next = new URLSearchParams(searchParams);
-    Object.entries(values).forEach(([key, value]) =>
-      value ? next.set(key, value) : next.delete(key),
-    );
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    });
     next.delete('device');
     setSearchParams(next, { replace: true });
   };

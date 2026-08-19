@@ -50,7 +50,9 @@ export const summarizePDUs = (devices: PDUDevice[]): PDUStats => {
 export const predictOverloadHours = (device: PDUDevice) => {
   const recent = device.loadTrend.slice(-4);
   if (recent.length < 2) return null;
-  const growth = (recent.at(-1)!.load - recent[0].load) / (recent.length - 1);
+  const lastReading = recent.at(-1);
+  if (!lastReading) return null;
+  const growth = (lastReading.load - recent[0].load) / (recent.length - 1);
   if (growth <= 0) return null;
   const thresholdLoad =
     device.pduData.maxLoad * ((device.pduData.loadThreshold ?? 80) / 100);

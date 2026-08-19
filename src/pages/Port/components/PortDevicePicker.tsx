@@ -43,12 +43,13 @@ const PortDevicePicker: React.FC<Props> = ({
     if (requestedDeviceId)
       void getDevice(requestedDeviceId).then((result) => {
         if (!result.success || !result.data) return onChange(undefined);
+        const requestedDevice = result.data;
         setDevices((current) =>
-          current.some((device) => device.id === result.data!.id)
+          current.some((device) => device.id === requestedDevice.id)
             ? current
-            : [result.data!, ...current],
+            : [requestedDevice, ...current],
         );
-        onChange(result.data);
+        onChange(requestedDevice);
       });
   }, [requestedDeviceId]);
 

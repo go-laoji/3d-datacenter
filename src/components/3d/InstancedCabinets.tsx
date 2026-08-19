@@ -137,7 +137,6 @@ export function InstancedCabinets({
     const tempMatrix = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const euler = new THREE.Euler();
-    const tempColor = new THREE.Color();
     const statusPos = new THREE.Vector3();
     const oneScale = new THREE.Vector3(1, 1, 1);
     const pos = new THREE.Vector3();

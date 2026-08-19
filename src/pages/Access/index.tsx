@@ -172,38 +172,36 @@ export default function AccessPage() {
         }
       >
         {inspectedUser && effectiveAccess ? (
-          <>
-            <Descriptions bordered column={1} size="small">
-              <Descriptions.Item label="用户">
-                {inspectedUser.name} · {inspectedUser.username}
-              </Descriptions.Item>
-              <Descriptions.Item label="有效角色">
-                {inspectedUser.roleIds.map((id) => (
-                  <Tag key={id}>
-                    {snapshot.roles.find((role) => role.id === id)?.name}
-                  </Tag>
-                ))}
-              </Descriptions.Item>
-              <Descriptions.Item label="数据范围">
-                {effectiveAccess.datacenterIds.includes('*')
-                  ? '全部数据中心'
-                  : effectiveAccess.datacenterIds
-                      .map(
-                        (id) =>
-                          snapshot.datacenters.find((item) => item.id === id)
-                            ?.name,
-                      )
-                      .join('、')}
-              </Descriptions.Item>
-              <Descriptions.Item label="有效权限">
-                {effectiveAccess.permissions.map((permission) => (
-                  <Tag color="blue" key={permission.key}>
-                    {permission.name}
-                  </Tag>
-                ))}
-              </Descriptions.Item>
-            </Descriptions>
-          </>
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="用户">
+              {inspectedUser.name} · {inspectedUser.username}
+            </Descriptions.Item>
+            <Descriptions.Item label="有效角色">
+              {inspectedUser.roleIds.map((id) => (
+                <Tag key={id}>
+                  {snapshot.roles.find((role) => role.id === id)?.name}
+                </Tag>
+              ))}
+            </Descriptions.Item>
+            <Descriptions.Item label="数据范围">
+              {effectiveAccess.datacenterIds.includes('*')
+                ? '全部数据中心'
+                : effectiveAccess.datacenterIds
+                    .map(
+                      (id) =>
+                        snapshot.datacenters.find((item) => item.id === id)
+                          ?.name,
+                    )
+                    .join('、')}
+            </Descriptions.Item>
+            <Descriptions.Item label="有效权限">
+              {effectiveAccess.permissions.map((permission) => (
+                <Tag color="blue" key={permission.key}>
+                  {permission.name}
+                </Tag>
+              ))}
+            </Descriptions.Item>
+          </Descriptions>
         ) : (
           <Empty />
         )}

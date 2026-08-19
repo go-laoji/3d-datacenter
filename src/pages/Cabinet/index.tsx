@@ -10,6 +10,7 @@ import {
 } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
 import {
+  Alert,
   Button,
   message,
   Popconfirm,
@@ -42,6 +43,7 @@ import { getAllDeviceTemplates } from '@/services/idc/deviceTemplate';
 const CabinetPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const requestedCabinetId = searchParams.get('cabinetId');
+  const requestedUsageRisk = searchParams.get('usageRisk');
   const actionRef = useRef<ActionType>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -59,7 +61,7 @@ const CabinetPage: React.FC = () => {
 
   useEffect(() => {
     actionRef.current?.reload();
-  }, [requestedCabinetId]);
+  }, [requestedCabinetId, requestedUsageRisk]);
 
   useEffect(() => {
     getAllDatacenters().then((res) => {
@@ -262,6 +264,24 @@ const CabinetPage: React.FC = () => {
         subTitle: '管理数据中心机柜信息',
       }}
     >
+      {(requestedCabinetId || requestedUsageRisk) && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={
+            requestedCabinetId
+              ? `已定位机柜 ${requestedCabinetId}`
+              : '已筛选 U 位使用率达到 85% 的容量风险机柜'
+          }
+          description="此定位来自工作台或设备联动，可继续查看 42U 使用详情与设备分布。"
+          action={
+            <Button size="small" onClick={() => history.push('/idc/cabinet')}>
+              清除定位
+            </Button>
+          }
+        />
+      )}
       <ProTable<IDC.Cabinet>
         headerTitle="机柜列表"
         actionRef={actionRef}
@@ -277,6 +297,7 @@ const CabinetPage: React.FC = () => {
             name: params.name,
             status: params.status,
             code: params.code,
+            minUsageRatio: requestedUsageRisk === 'high' ? 0.85 : undefined,
           });
           return {
             data: res.data || [],

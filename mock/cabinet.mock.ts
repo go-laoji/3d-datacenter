@@ -90,7 +90,16 @@ export default {
     // 获取机柜列表
     'GET /api/idc/cabinets': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { current = 1, pageSize = 10, id, datacenterId, name, status, code } = req.query;
+        const {
+            current = 1,
+            pageSize = 10,
+            id,
+            datacenterId,
+            name,
+            status,
+            code,
+            minUsageRatio,
+        } = req.query;
 
         let filteredData = [...cabinets];
 
@@ -108,6 +117,10 @@ export default {
         }
         if (code) {
             filteredData = filteredData.filter(c => c.code.includes(code as string));
+        }
+        if (minUsageRatio) {
+            const minimum = Number(minUsageRatio);
+            filteredData = filteredData.filter(c => c.usedU / c.uHeight >= minimum);
         }
 
         const start = (Number(current) - 1) * Number(pageSize);

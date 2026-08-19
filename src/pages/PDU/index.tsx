@@ -7,7 +7,7 @@ import {
   ProFormText,
   ProTable,
 } from '@ant-design/pro-components';
-import { useIntl } from '@umijs/max';
+import { history, useIntl } from '@umijs/max';
 import {
   Badge,
   Button,
@@ -167,10 +167,9 @@ const PDUPage: React.FC = () => {
           <Button
             type="link"
             size="small"
-            onClick={() => {
-              // 跳转到机柜管理页面
-              window.location.hash = `/cabinet?id=${record.cabinetId}`;
-            }}
+            onClick={() =>
+              history.push(`/idc/cabinet?cabinetId=${record.cabinetId}`)
+            }
           >
             {cab.name}
           </Button>

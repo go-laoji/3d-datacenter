@@ -90,10 +90,13 @@ export default {
     // 获取机柜列表
     'GET /api/idc/cabinets': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { current = 1, pageSize = 10, datacenterId, name, status, code } = req.query;
+        const { current = 1, pageSize = 10, id, datacenterId, name, status, code } = req.query;
 
         let filteredData = [...cabinets];
 
+        if (id) {
+            filteredData = filteredData.filter(c => c.id === String(id));
+        }
         if (datacenterId) {
             filteredData = filteredData.filter(c => c.datacenterId === datacenterId);
         }
@@ -123,7 +126,7 @@ export default {
     // 获取单个机柜
     'GET /api/idc/cabinets/:id': async (req: Request, res: Response) => {
         await waitTime(200);
-        const { id } = req.params;
+        const id = String(req.params.id);
         const cabinet = cabinets.find(c => c.id === id);
 
         if (cabinet) {
@@ -163,7 +166,7 @@ export default {
     // 更新机柜
     'PUT /api/idc/cabinets/:id': async (req: Request, res: Response) => {
         await waitTime(400);
-        const { id } = req.params;
+        const id = String(req.params.id);
         const body = req.body;
 
         const index = cabinets.findIndex(c => c.id === id);
@@ -184,7 +187,7 @@ export default {
     // 删除机柜
     'DELETE /api/idc/cabinets/:id': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const index = cabinets.findIndex(c => c.id === id);
         if (index === -1) {
@@ -199,7 +202,7 @@ export default {
     // 获取数据中心下的所有机柜（3D视图用）
     'GET /api/idc/cabinets/by-datacenter/:datacenterId': async (req: Request, res: Response) => {
         await waitTime(200);
-        const { datacenterId } = req.params;
+        const datacenterId = String(req.params.datacenterId);
         const dcCabinets = cabinets.filter(c => c.datacenterId === datacenterId);
 
         res.json({
@@ -211,7 +214,7 @@ export default {
     // 获取机柜U位使用情况
     'GET /api/idc/cabinets/:id/u-usage': async (req: Request, res: Response) => {
         await waitTime(200);
-        const { id } = req.params;
+        const id = String(req.params.id);
         const cabinet = cabinets.find(c => c.id === id);
 
         if (!cabinet) {

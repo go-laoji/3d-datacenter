@@ -1,152 +1,96 @@
+.contextNotice {
+  margin-bottom: 12px;
+}
+
 .container {
-    display: flex;
-    gap: 24px;
-    min-height: calc(100vh - 200px);
+  display: grid;
+  min-height: 620px;
+  grid-template-columns: minmax(380px, 44%) 1fr;
+  gap: 12px;
 }
 
-.treeCard {
-    width: 520px;
-    flex-shrink: 0;
-    max-height: calc(100vh - 180px);
-    overflow-y: auto;
-}
-
+.treeCard,
 .detailCard {
-    flex: 1;
-    min-width: 500px;
-    max-height: calc(100vh - 180px);
-    overflow-y: auto;
-
-    :global {
-        .ant-card-body {
-            padding: 16px;
-        }
-    }
+  max-height: calc(100vh - 190px);
+  overflow: auto;
 }
 
-.searchInput {
-    margin-bottom: 16px;
+.navigatorControls {
+  display: flex;
+  margin: 12px 0;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .tree {
-    :global {
-        .ant-tree-node-content-wrapper {
-            display: flex;
-            align-items: center;
-            padding: 6px 8px;
-            border-radius: 6px;
-            transition: all 0.2s ease;
-
-            &:hover {
-                background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
-            }
-        }
-
-        .ant-tree-node-selected {
-            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%) !important;
-        }
-
-        .ant-tree-switcher {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .ant-tree-title {
-            flex: 1;
-        }
-    }
+  :global(.ant-tree-node-content-wrapper) {
+    min-height: 34px;
+    padding: 5px 8px;
+  }
 }
 
 .nodeTitle {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
+  max-width: 310px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.dcIcon {
-    color: #1890ff;
-    font-size: 16px;
-}
+.resourceResults {
+  max-height: 520px;
+  overflow: auto;
 
-.cabIcon {
-    color: #52c41a;
-    font-size: 16px;
-}
+  :global(.ant-list-item) {
+    padding-inline: 8px;
+    border-radius: 6px;
+    cursor: pointer;
 
-.deviceTypeIcon {
-    display: flex;
-    align-items: center;
-    color: #722ed1;
-}
-
-.nodeName {
-    font-weight: 500;
-    color: #333;
-}
-
-.nodeTag {
-    font-size: 11px;
-    line-height: 18px;
-    padding: 0 6px;
-    margin-left: 4px;
-}
-
-.nodeInfo {
-    color: #999;
-    font-size: 12px;
-    margin-left: 8px;
-}
-
-.detailPanel {
-    h3 {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 16px;
-        font-weight: 600;
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #f0f0f0;
-        color: #333;
+    &:hover {
+      background: #f5f5f5;
     }
+  }
 }
 
-.deviceHeaderIcon {
-    display: flex;
-    align-items: center;
-    color: #722ed1;
+.selectedResult {
+  background: #e6f4ff;
 }
 
-.detailItem {
-    display: flex;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px dashed #f5f5f5;
+.resultButton {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 4px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  gap: 10px;
 
-    &:last-child {
-        border-bottom: none;
-    }
+  small {
+    display: block;
+    margin-top: 3px;
+    color: #8c8c8c;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #1677ff;
+  }
 }
 
-.label {
-    width: 80px;
-    color: #666;
-    flex-shrink: 0;
+.indexHint {
+  display: block;
+  margin-top: 12px;
+  text-align: center;
 }
 
-/* 响应式 */
 @media (max-width: 992px) {
-    .container {
-        flex-direction: column;
-    }
+  .container {
+    grid-template-columns: 1fr;
+  }
 
-    .treeCard {
-        min-width: auto;
-    }
-
-    .detailCard {
-        width: 100%;
-    }
+  .treeCard,
+  .detailCard {
+    max-height: none;
+  }
 }

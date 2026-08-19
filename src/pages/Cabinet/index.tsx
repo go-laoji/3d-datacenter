@@ -12,8 +12,9 @@ import { history, useSearchParams } from '@umijs/max';
 import {
   Alert,
   Button,
+  Dropdown,
+  Modal,
   message,
-  Popconfirm,
   Progress,
   Space,
   Tag,
@@ -23,6 +24,7 @@ import {
   Box,
   Edit3,
   LayoutGrid,
+  MoreHorizontal,
   Plus,
   Server,
   Trash2,
@@ -39,6 +41,7 @@ import {
 import { getAllDatacenters } from '@/services/idc/datacenter';
 import { getDevices } from '@/services/idc/device';
 import { getAllDeviceTemplates } from '@/services/idc/deviceTemplate';
+import { getCabinetHealth } from './cabinetPresentation';
 
 const CabinetPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -177,6 +180,39 @@ const CabinetPage: React.FC = () => {
       },
     },
     {
+      title: '健康与风险',
+      dataIndex: 'health',
+      width: 210,
+      search: false,
+      render: (_, record) => {
+        const health = getCabinetHealth(record);
+        return (
+          <Space size={[4, 4]} wrap>
+            <Tag
+              color={
+                health.score >= 90
+                  ? 'success'
+                  : health.score >= 75
+                    ? 'warning'
+                    : 'error'
+              }
+            >
+              健康 {health.score}
+            </Tag>
+            {health.risks.length === 0 ? (
+              <Tag>无显著风险</Tag>
+            ) : (
+              health.risks.map((risk) => (
+                <Tag key={risk.key} color={risk.color}>
+                  {risk.label}
+                </Tag>
+              ))
+            )}
+          </Space>
+        );
+      },
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       width: 80,
@@ -204,20 +240,10 @@ const CabinetPage: React.FC = () => {
     {
       title: '操作',
       valueType: 'option',
-      width: 360,
+      width: 210,
       fixed: 'right',
-      render: (_, record) => [
-        <Tooltip key="3d" title="查看3D机柜视图">
-          <Button
-            type="link"
-            size="small"
-            icon={<Box size={14} />}
-            onClick={() => history.push(`/cabinet3d?id=${record.id}`)}
-          >
-            3D视图
-          </Button>
-        </Tooltip>,
-        <Tooltip key="view" title="查看机柜U位使用详情">
+      render: (_, record) => (
+        <Space size={0}>
           <Button
             type="link"
             size="small"
@@ -226,35 +252,54 @@ const CabinetPage: React.FC = () => {
           >
             使用详情
           </Button>
-        </Tooltip>,
-        <Button
-          key="edit"
-          type="link"
-          size="small"
-          icon={<Edit3 size={14} />}
-          onClick={() => {
-            setCurrentRow(record);
-            setEditModalOpen(true);
-          }}
-        >
-          编辑
-        </Button>,
-        <Popconfirm
-          key="delete"
-          title="确定要删除这个机柜吗？"
-          onConfirm={async () => {
-            const res = await deleteCabinet(record.id);
-            if (res.success) {
-              message.success('删除成功');
-              actionRef.current?.reload();
-            }
-          }}
-        >
-          <Button type="link" size="small" danger icon={<Trash2 size={14} />}>
-            删除
-          </Button>
-        </Popconfirm>,
-      ],
+          <Dropdown
+            menu={{
+              items: [
+                { key: '3d', icon: <Box size={14} />, label: '3D 视图' },
+                { key: 'edit', icon: <Edit3 size={14} />, label: '编辑' },
+                {
+                  key: 'delete',
+                  icon: <Trash2 size={14} />,
+                  label: '删除',
+                  danger: true,
+                },
+              ],
+              onClick: ({ key }) => {
+                if (key === '3d') {
+                  history.push(`/cabinet3d?id=${record.id}`);
+                  return;
+                }
+                if (key === 'edit') {
+                  setCurrentRow(record);
+                  setEditModalOpen(true);
+                  return;
+                }
+                Modal.confirm({
+                  title: '删除机柜？',
+                  content: '仅允许删除没有设备和依赖关系的机柜。',
+                  okText: '确认删除',
+                  okButtonProps: { danger: true },
+                  cancelText: '取消',
+                  onOk: async () => {
+                    const response = await deleteCabinet(record.id);
+                    if (!response.success) return Promise.reject();
+                    message.success('删除成功');
+                    actionRef.current?.reload();
+                  },
+                });
+              },
+            }}
+          >
+            <Button
+              type="link"
+              size="small"
+              icon={<MoreHorizontal size={14} />}
+            >
+              更多
+            </Button>
+          </Dropdown>
+        </Space>
+      ),
     },
   ];
 
@@ -471,9 +516,8 @@ const CabinetPage: React.FC = () => {
           setCabinetDevices([]);
         }}
         onDeviceClick={(device) => {
-          message.info(
-            `设备: ${device.name} (IP: ${device.managementIp || '-'})`,
-          );
+          setFrontViewOpen(false);
+          history.push(`/idc/device?deviceId=${device.id}`);
         }}
       />
     </PageContainer>

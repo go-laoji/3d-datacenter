@@ -70,6 +70,20 @@ export async function batchUpdateDeviceStatus(ids: string[], status: IDC.Device[
     });
 }
 
+/** 批量变更资产生命周期 */
+export async function batchUpdateDeviceLifecycle(
+    ids: string[],
+    lifecycleStatus: IDC.DeviceLifecycleStatus,
+) {
+    return request<IDC.ApiResponse<{ updatedCount: number }>>(
+        '/api/idc/devices/batch-lifecycle',
+        {
+            method: 'POST',
+            data: { ids, lifecycleStatus },
+        },
+    );
+}
+
 /** 获取设备统计 */
 export async function getDeviceStats() {
     return request<IDC.ApiResponse<{

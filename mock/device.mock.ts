@@ -500,6 +500,26 @@ export default {
         });
     },
 
+    'POST /api/idc/devices/batch-lifecycle': async (req: Request, res: Response) => {
+        await waitTime(280);
+        const { ids, lifecycleStatus } = req.body as {
+            ids: string[];
+            lifecycleStatus: IDC.DeviceLifecycleStatus;
+        };
+        const requestedIds = new Set(ids || []);
+        let updatedCount = 0;
+        devices.forEach(device => {
+            if (!requestedIds.has(device.id)) return;
+            device.lifecycleStatus = lifecycleStatus;
+            device.isMounted = !['inventory', 'archived'].includes(lifecycleStatus);
+            if (lifecycleStatus === 'maintenance') device.status = 'maintenance';
+            if (lifecycleStatus === 'archived') device.status = 'offline';
+            device.updatedAt = new Date().toISOString();
+            updatedCount += 1;
+        });
+        res.json({ success: true, data: { updatedCount } });
+    },
+
     // 更新设备
     'PUT /api/idc/devices/:id': async (req: Request, res: Response) => {
         await waitTime(400);

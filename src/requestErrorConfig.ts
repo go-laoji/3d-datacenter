@@ -8,7 +8,6 @@ import {
   getAccessToken,
 } from '@/utils/session';
 
-// 错误处理方案： 错误类型
 enum ErrorShowType {
   SILENT = 0,
   WARN_MESSAGE = 1,
@@ -16,13 +15,14 @@ enum ErrorShowType {
   NOTIFICATION = 3,
   REDIRECT = 9,
 }
-// 与后端约定的响应数据格式
+
 interface ResponseStructure {
   success: boolean;
-  data: any;
-  errorCode?: number;
+  data?: unknown;
+  errorCode?: number | string;
   errorMessage?: string;
   showType?: ErrorShowType;
+  traceId?: string;
 }
 
 const loginPath = '/user/login';
@@ -30,63 +30,72 @@ const loginPath = '/user/login';
 function redirectToLogin(): void {
   const currentPath = history.location.pathname + history.location.search;
   if (history.location.pathname === loginPath) return;
-  const redirect = encodeURIComponent(currentPath);
-  history.replace(`${loginPath}?redirect=${redirect}`);
+  history.replace(`${loginPath}?redirect=${encodeURIComponent(currentPath)}`);
 }
 
-/**
- * @name 错误处理
- * pro 自带的错误处理， 可以在这里做自己的改动
- * @doc https://umijs.org/docs/max/request#配置
- */
+function getTraceId(error: any): string | undefined {
+  return (
+    error?.info?.traceId ||
+    error?.response?.data?.traceId ||
+    error?.response?.headers?.['x-request-id']
+  );
+}
+
+function withTrace(messageText: string, traceId?: string): string {
+  return traceId ? `${messageText}（追踪 ID：${traceId}）` : messageText;
+}
+
+function handleBusinessError(errorInfo: ResponseStructure): void {
+  const {
+    errorMessage = '请求未能完成',
+    errorCode,
+    showType,
+    traceId,
+  } = errorInfo;
+  const readableMessage = withTrace(errorMessage, traceId);
+
+  switch (showType) {
+    case ErrorShowType.SILENT:
+      return;
+    case ErrorShowType.WARN_MESSAGE:
+      message.warning(readableMessage);
+      return;
+    case ErrorShowType.NOTIFICATION:
+      notification.error({
+        message: errorCode ? String(errorCode) : '操作失败',
+        description: readableMessage,
+      });
+      return;
+    case ErrorShowType.REDIRECT:
+      clearSession();
+      redirectToLogin();
+      return;
+    default:
+      message.error(readableMessage);
+  }
+}
+
 export const errorConfig: RequestConfig = {
-  // 错误处理： umi@3 的错误处理方案。
   errorConfig: {
-    // 错误抛出
-    errorThrower: (res) => {
-      const { success, data, errorCode, errorMessage, showType } =
-        res as unknown as ResponseStructure;
-      if (!success) {
-        const error: any = new Error(errorMessage);
-        error.name = 'BizError';
-        error.info = { errorCode, errorMessage, showType, data };
-        throw error; // 抛出自制的错误
+    errorThrower: (response) => {
+      const result = response as unknown as ResponseStructure;
+      if (!result.success) {
+        throw Object.assign(new Error(result.errorMessage || '请求未能完成'), {
+          name: 'BizError',
+          info: result,
+        });
       }
     },
-    // 错误接收及处理
-    errorHandler: (error: any, opts: any) => {
-      if (opts?.skipErrorHandler) throw error;
-      // 我们的 errorThrower 抛出的错误。
-      if (error.name === 'BizError') {
-        const errorInfo: ResponseStructure | undefined = error.info;
-        if (errorInfo) {
-          const { errorMessage, errorCode } = errorInfo;
-          switch (errorInfo.showType) {
-            case ErrorShowType.SILENT:
-              // do nothing
-              break;
-            case ErrorShowType.WARN_MESSAGE:
-              message.warning(errorMessage);
-              break;
-            case ErrorShowType.ERROR_MESSAGE:
-              message.error(errorMessage);
-              break;
-            case ErrorShowType.NOTIFICATION:
-              notification.open({
-                description: errorMessage,
-                message: errorCode,
-              });
-              break;
-            case ErrorShowType.REDIRECT:
-              clearSession();
-              redirectToLogin();
-              return;
-            default:
-              message.error(errorMessage);
-          }
-        }
-      } else if (error.response) {
+    errorHandler: (error: any, options: any) => {
+      if (options?.skipErrorHandler) throw error;
+      if (error.name === 'BizError' && error.info) {
+        handleBusinessError(error.info as ResponseStructure);
+        return;
+      }
+
+      if (error.response) {
         const status = error.response.status;
+        const traceId = getTraceId(error);
         if (status === 401) {
           clearSession();
           redirectToLogin();
@@ -95,7 +104,10 @@ export const errorConfig: RequestConfig = {
         if (status === 403) {
           notification.error({
             message: '无权限访问',
-            description: '你没有访问该资源的权限，请联系管理员。',
+            description: withTrace(
+              '你没有访问该资源的权限，请联系管理员。',
+              traceId,
+            ),
           });
           history.push('/403');
           return;
@@ -103,46 +115,35 @@ export const errorConfig: RequestConfig = {
         if (status >= 500) {
           notification.error({
             message: '服务异常',
-            description: `Response status: ${status}`,
+            description: withTrace(
+              `服务暂时不可用（HTTP ${status}），请稍后重试。`,
+              traceId,
+            ),
           });
           return;
         }
-        message.error(`Response status: ${status}`);
-      } else if (error.request) {
-        // 请求已经成功发起，但没有收到响应
-        // \`error.request\` 在浏览器中是 XMLHttpRequest 的实例，
-        // 而在node.js中是 http.ClientRequest 的实例
-        message.error('None response! Please retry.');
-      } else {
-        // 发送请求时出了点问题
-        message.error('Request error, please retry.');
+        message.error(withTrace(`请求失败（HTTP ${status}）`, traceId));
+        return;
       }
+
+      if (error.request) {
+        notification.error({
+          message: '网络连接异常',
+          description: '未收到服务响应，请检查网络后重试读取操作。',
+        });
+        return;
+      }
+      message.error('请求未能发送，请检查输入或稍后重试');
     },
   },
 
-  // 请求拦截器
   requestInterceptors: [
     async (config: RequestOptions) => {
       await ensureValidSession();
       const token = getAccessToken();
       const headers = config?.headers || {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      if (token) headers.Authorization = `Bearer ${token}`;
       return { ...config, headers };
-    },
-  ],
-
-  // 响应拦截器
-  responseInterceptors: [
-    (response) => {
-      // 拦截响应数据，进行个性化处理
-      const { data } = response as unknown as ResponseStructure;
-
-      if (data?.success === false) {
-        message.error('请求失败！');
-      }
-      return response;
     },
   ],
 };

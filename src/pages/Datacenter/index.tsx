@@ -7,7 +7,6 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { history } from '@umijs/max';
 import { Button, message, Progress, Space, Tag, Tooltip } from 'antd';
 import {
   Archive,
@@ -26,6 +25,7 @@ import {
   updateDatacenter,
 } from '@/services/idc';
 import DatacenterArchiveModal from './components/DatacenterArchiveModal';
+import DatacenterOverviewDrawer from './components/DatacenterOverviewDrawer';
 
 const DatacenterPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
@@ -33,6 +33,7 @@ const DatacenterPage: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentRow, setCurrentRow] = useState<IDC.Datacenter>();
   const [archiveTarget, setArchiveTarget] = useState<IDC.Datacenter>();
+  const [overviewTarget, setOverviewTarget] = useState<IDC.Datacenter>();
 
   const statusMap: Record<string, { color: string; text: string }> = {
     active: { color: 'success', text: '运行中' },
@@ -106,6 +107,29 @@ const DatacenterPage: React.FC = () => {
       },
     },
     {
+      title: '健康度',
+      dataIndex: 'healthScore',
+      width: 120,
+      search: false,
+      render: (_, record) => {
+        const score = record.healthScore ?? 100;
+        return (
+          <Space size={4}>
+            <Tag
+              color={
+                score >= 90 ? 'success' : score >= 80 ? 'warning' : 'error'
+              }
+            >
+              {score} 分
+            </Tag>
+            {Boolean(record.activeAlertCount) && (
+              <Tag color="error">{record.activeAlertCount} 告警</Tag>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       width: 100,
@@ -148,8 +172,8 @@ const DatacenterPage: React.FC = () => {
         ),
     },
     {
-      title: '更新时间',
-      dataIndex: 'updatedAt',
+      title: '最后同步',
+      dataIndex: 'lastSyncedAt',
       width: 170,
       valueType: 'dateTime',
       search: false,
@@ -167,10 +191,10 @@ const DatacenterPage: React.FC = () => {
           size="small"
           icon={<Eye size={14} />}
           onClick={() => {
-            history.push(`/datacenter3d?id=${record.id}`);
+            setOverviewTarget(record);
           }}
         >
-          3D视图
+          站点总览
         </Button>,
         <Button
           key="edit"
@@ -357,6 +381,12 @@ const DatacenterPage: React.FC = () => {
           setArchiveTarget(undefined);
           actionRef.current?.reload();
         }}
+      />
+
+      <DatacenterOverviewDrawer
+        datacenter={overviewTarget}
+        open={Boolean(overviewTarget)}
+        onClose={() => setOverviewTarget(undefined)}
       />
     </PageContainer>
   );

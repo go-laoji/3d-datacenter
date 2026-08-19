@@ -41,6 +41,12 @@ declare namespace IDC {
     description?: string;
     contact?: string; // 联系人
     phone?: string; // 联系电话
+    healthScore?: number;
+    activeAlertCount?: number;
+    deviceCount?: number;
+    powerUsagePercent?: number;
+    coolingHeadroomPercent?: number;
+    lastSyncedAt?: string;
     archivedAt?: string;
     createdAt: string;
     updatedAt: string;

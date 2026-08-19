@@ -45,6 +45,7 @@ export default [
     name: 'layout',
     icon: 'layout',
     component: './DatacenterLayout',
+    access: 'canEditDigitalTwin',
   },
   {
     path: '/cabinet3d',
@@ -158,6 +159,7 @@ export default [
     path: '/system',
     name: 'system',
     icon: 'setting',
+    access: 'canManageSystem',
     routes: [
       { path: '/system', redirect: '/system/access' },
       {
@@ -186,6 +188,7 @@ export default [
     path: '/operations',
     name: 'operations',
     icon: 'solution',
+    access: 'canOperate',
     routes: [
       { path: '/operations', redirect: '/operations/notifications' },
       {
@@ -205,6 +208,7 @@ export default [
     name: 'reports',
     icon: 'barChart',
     component: './Reports',
+    access: 'canExport',
   },
 
   {

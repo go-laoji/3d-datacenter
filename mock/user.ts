@@ -93,56 +93,28 @@ export default {
     res.send({
       success: true,
       data: {
-        name: 'Serati Ma',
-        avatar:
-          'https://gw.alipayobjects.com/zos/antfincdn/XAosXuNZyF/BiazfanxmamNRoxxVxka.png',
-        userid: '00000001',
-        email: 'antdesign@alipay.com',
-        signature: '海纳百川，有容乃大',
-        title: '交互专家',
-        group: '蚂蚁金服－某某某事业群－某某平台部－某某技术部－UED',
-        tags: [
-          {
-            key: '0',
-            label: '很有想法的',
-          },
-          {
-            key: '1',
-            label: '专注设计',
-          },
-          {
-            key: '2',
-            label: '辣~',
-          },
-          {
-            key: '3',
-            label: '大长腿',
-          },
-          {
-            key: '4',
-            label: '川妹子',
-          },
-          {
-            key: '5',
-            label: '海纳百川',
-          },
-        ],
-        notifyCount: 12,
-        unreadCount: 11,
+        name: getAccess() === 'admin' ? '张管理员' : '张运维',
+        avatar: '/logo.svg',
+        userid: getAccess() === 'admin' ? 'admin' : 'user-001',
+        email:
+          getAccess() === 'admin'
+            ? 'admin@tddc.example'
+            : 'zhang.ops@tddc.example',
+        signature: '让每一次运维变化都可定位、可协作、可追溯',
+        title: getAccess() === 'admin' ? '系统管理员' : 'NOC 值班员',
+        group:
+          getAccess() === 'admin' ? '系统治理组' : '基础设施运维部 / NOC 值班组',
+        tags: [],
+        notifyCount: 3,
+        unreadCount: 2,
         country: 'China',
         access: getAccess(),
         geographic: {
-          province: {
-            label: '浙江省',
-            key: '330000',
-          },
-          city: {
-            label: '杭州市',
-            key: '330100',
-          },
+          province: { label: '北京市', key: '110000' },
+          city: { label: '大兴区', key: '110115' },
         },
-        address: '西湖区工专路 77 号',
-        phone: '0752-268888888',
+        address: '北京亦庄数据中心',
+        phone: '13800138001',
       },
     });
   },

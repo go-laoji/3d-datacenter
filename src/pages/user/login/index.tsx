@@ -94,8 +94,8 @@ const Login: React.FC = () => {
               className={styles.identityHint}
               type="info"
               showIcon
-              message="身份认证"
-              description="当前为前端 Mock 演示环境；产品支持为企业 SSO、LDAP 或 OIDC 预留接入位置。"
+              message="企业身份认证"
+              description="当前使用账号密码完成前端 Mock 演示；生产接入由独立后端仓库对接企业 SSO、LDAP 或 OIDC。"
             />
             {userLoginState.status === 'error' && (
               <LoginMessage content="账号或密码不正确，请重新输入" />

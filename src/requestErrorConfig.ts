@@ -1,7 +1,7 @@
 import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
 import { history } from '@umijs/max';
-import { message, notification } from 'antd';
+import { showGlobalError, showGlobalMessage } from '@/utils/feedback';
 import {
   clearSession,
   ensureValidSession,
@@ -58,20 +58,20 @@ function handleBusinessError(errorInfo: ResponseStructure): void {
     case ErrorShowType.SILENT:
       return;
     case ErrorShowType.WARN_MESSAGE:
-      message.warning(readableMessage);
+      showGlobalMessage('warning', readableMessage);
       return;
     case ErrorShowType.NOTIFICATION:
-      notification.error({
-        message: errorCode ? String(errorCode) : '操作失败',
-        description: readableMessage,
-      });
+      showGlobalError(
+        errorCode ? String(errorCode) : '操作失败',
+        readableMessage,
+      );
       return;
     case ErrorShowType.REDIRECT:
       clearSession();
       redirectToLogin();
       return;
     default:
-      message.error(readableMessage);
+      showGlobalMessage('error', readableMessage);
   }
 }
 
@@ -102,38 +102,38 @@ export const errorConfig: RequestConfig = {
           return;
         }
         if (status === 403) {
-          notification.error({
-            message: '无权限访问',
-            description: withTrace(
-              '你没有访问该资源的权限，请联系管理员。',
-              traceId,
-            ),
-          });
+          showGlobalError(
+            '无权限访问',
+            withTrace('你没有访问该资源的权限，请联系管理员。', traceId),
+          );
           history.push('/403');
           return;
         }
         if (status >= 500) {
-          notification.error({
-            message: '服务异常',
-            description: withTrace(
-              `服务暂时不可用（HTTP ${status}），请稍后重试。`,
+          showGlobalError(
+            '服务异常',
+            withTrace(
+              `服务暂时不可用（HTTP ${status}），请稍后重试；若持续出现，请提供追踪 ID。`,
               traceId,
             ),
-          });
+          );
           return;
         }
-        message.error(withTrace(`请求失败（HTTP ${status}）`, traceId));
+        showGlobalMessage(
+          'error',
+          withTrace(`请求失败（HTTP ${status}），请检查输入后重试`, traceId),
+        );
         return;
       }
 
       if (error.request) {
-        notification.error({
-          message: '网络连接异常',
-          description: '未收到服务响应，请检查网络后重试读取操作。',
-        });
+        showGlobalError(
+          '网络连接异常',
+          '未收到服务响应，请检查网络后重试；已填写的表单内容会尽量保留。',
+        );
         return;
       }
-      message.error('请求未能发送，请检查输入或稍后重试');
+      showGlobalMessage('error', '请求未能发送，请检查输入或稍后重试');
     },
   },
 

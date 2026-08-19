@@ -240,24 +240,24 @@ export default {
 
         // 简化的拓扑数据
         const nodes = [
-            { id: 'dev-001', label: '核心交换机-A1', type: 'switch', status: 'online', x: 400, y: 100 },
-            { id: 'dev-002', label: '接入交换机-A1-1', type: 'switch', status: 'online', x: 200, y: 250 },
-            { id: 'dev-006', label: '边界防火墙-1', type: 'firewall', status: 'online', x: 600, y: 250 },
-            { id: 'dev-007', label: '负载均衡器-1', type: 'loadbalancer', status: 'online', x: 600, y: 400 },
-            { id: 'dev-003', label: '应用服务器-A1-1', type: 'server', status: 'online', x: 100, y: 400 },
-            { id: 'dev-004', label: '应用服务器-A1-2', type: 'server', status: 'online', x: 200, y: 400 },
-            { id: 'dev-005', label: '数据库服务器-A1-1', type: 'server', status: 'online', x: 300, y: 400 },
-            { id: 'dev-008', label: '核心存储-1', type: 'storage', status: 'online', x: 300, y: 550 },
+            { id: 'dev-001', label: '核心交换机-A1', type: 'switch', status: 'online', cabinetId: 'cab-bj-001', managementIp: '10.0.1.1', alertCount: 0, x: 400, y: 100 },
+            { id: 'dev-002', label: '接入交换机-A1-1', type: 'switch', status: 'online', cabinetId: 'cab-bj-001', managementIp: '10.0.1.2', alertCount: 0, x: 200, y: 250 },
+            { id: 'dev-006', label: '边界防火墙-1', type: 'firewall', status: 'warning', cabinetId: 'cab-bj-002', managementIp: '10.0.254.1', alertCount: 2, x: 600, y: 250 },
+            { id: 'dev-007', label: '负载均衡器-1', type: 'loadbalancer', status: 'online', cabinetId: 'cab-bj-002', managementIp: '10.0.253.1', alertCount: 0, x: 600, y: 400 },
+            { id: 'dev-003', label: '应用服务器-A1-1', type: 'server', status: 'online', cabinetId: 'cab-bj-001', managementIp: '10.0.10.1', alertCount: 0, x: 100, y: 400 },
+            { id: 'dev-004', label: '应用服务器-A1-2', type: 'server', status: 'offline', cabinetId: 'cab-bj-001', managementIp: '10.0.10.2', alertCount: 1, x: 200, y: 400 },
+            { id: 'dev-005', label: '数据库服务器-A1-1', type: 'server', status: 'online', cabinetId: 'cab-bj-001', managementIp: '10.0.20.1', alertCount: 0, x: 300, y: 400 },
+            { id: 'dev-008', label: '核心存储-1', type: 'storage', status: 'online', cabinetId: 'cab-bj-003', managementIp: '10.0.30.1', alertCount: 0, x: 300, y: 550 },
         ];
 
         const edges = [
-            { source: 'dev-001', target: 'dev-002', type: 'network' },
-            { source: 'dev-001', target: 'dev-006', type: 'network' },
-            { source: 'dev-006', target: 'dev-007', type: 'network' },
-            { source: 'dev-002', target: 'dev-003', type: 'network' },
-            { source: 'dev-002', target: 'dev-004', type: 'network' },
-            { source: 'dev-002', target: 'dev-005', type: 'network' },
-            { source: 'dev-005', target: 'dev-008', type: 'storage' },
+            { id: 'conn-001', source: 'dev-001', target: 'dev-002', type: 'network', sourcePort: 'XGE1/0/1', targetPort: 'XGE1/0/1', speed: '10G', status: 'active', updatedAt: '2026-08-20 09:58:12' },
+            { id: 'conn-009', source: 'dev-001', target: 'dev-006', type: 'network', sourcePort: 'XGE1/0/3', targetPort: 'SFP2', speed: '10G', status: 'active', updatedAt: '2026-08-20 09:58:12' },
+            { id: 'conn-007', source: 'dev-006', target: 'dev-007', type: 'network', sourcePort: 'SFP1', targetPort: 'SFP1', speed: '10G', status: 'faulty', updatedAt: '2026-08-20 09:54:20' },
+            { id: 'conn-003', source: 'dev-002', target: 'dev-003', type: 'network', sourcePort: 'GE1/0/1', targetPort: 'eth1', speed: '1G', status: 'active', updatedAt: '2026-08-20 09:58:12' },
+            { id: 'conn-005', source: 'dev-002', target: 'dev-004', type: 'network', sourcePort: 'GE1/0/3', targetPort: 'eth1', speed: '1G', status: 'faulty', updatedAt: '2026-08-20 09:52:04' },
+            { id: 'conn-006', source: 'dev-002', target: 'dev-005', type: 'network', sourcePort: 'GE1/0/4', targetPort: 'eth1', speed: '1G', status: 'active', updatedAt: '2026-08-20 09:58:12' },
+            { id: 'conn-008', source: 'dev-005', target: 'dev-008', type: 'storage', sourcePort: 'FC1', targetPort: 'FC1', speed: '16G', status: 'active', updatedAt: '2026-08-20 09:58:12' },
         ];
 
         res.json({

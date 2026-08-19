@@ -1,5 +1,29 @@
 import { request } from '@umijs/max';
 
+export interface NetworkTopologyNode {
+  id: string;
+  label: string;
+  type: string;
+  status: string;
+  cabinetId: string;
+  managementIp?: string;
+  alertCount: number;
+  x: number;
+  y: number;
+}
+
+export interface NetworkTopologyEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  sourcePort: string;
+  targetPort: string;
+  speed: string;
+  status: 'active' | 'faulty';
+  updatedAt: string;
+}
+
 export interface DashboardTrendPoint {
   date: string;
   online: number;
@@ -89,15 +113,8 @@ export async function getTopology(datacenterId: string) {
   return request<
     IDC.ApiResponse<{
       datacenterId: string;
-      nodes: Array<{
-        id: string;
-        label: string;
-        type: string;
-        status: string;
-        x: number;
-        y: number;
-      }>;
-      edges: Array<{ source: string; target: string; type: string }>;
+      nodes: NetworkTopologyNode[];
+      edges: NetworkTopologyEdge[];
     }>
   >(`/api/idc/topology/${datacenterId}`, { method: 'GET' });
 }

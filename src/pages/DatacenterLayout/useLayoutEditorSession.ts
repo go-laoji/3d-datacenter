@@ -202,7 +202,7 @@ export function useLayoutEditorSession(datacenterId?: string) {
     [datacenterId, serverLayout, workingCopy],
   );
 
-  const useServerVersion = useCallback(() => {
+  const acceptServerVersion = useCallback(() => {
     if (!conflictLayout) return;
     setServerLayout(cloneLayout(conflictLayout));
     setWorkingCopy(cloneLayout(conflictLayout));
@@ -250,7 +250,7 @@ export function useLayoutEditorSession(datacenterId?: string) {
     redo,
     save,
     load,
-    useServerVersion,
+    acceptServerVersion,
     restoreDraft,
     discardDraft,
   };

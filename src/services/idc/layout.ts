@@ -21,6 +21,7 @@ export async function saveDatacenterLayout(
     {
       method: 'PUT',
       data,
+      skipErrorHandler: true,
     },
   );
 }

@@ -1,6 +1,17 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { Graph } from '@antv/g6';
-import { Badge, Button, Card, Empty, Select, Space, Spin, Tooltip } from 'antd';
+import { history, useSearchParams } from '@umijs/max';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Empty,
+  Select,
+  Space,
+  Spin,
+  Tooltip,
+} from 'antd';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getTopology } from '@/services/idc/dashboard';
@@ -24,6 +35,8 @@ interface TopologyEdge {
 }
 
 const TopologyPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const requestedDatacenterId = searchParams.get('datacenterId');
   const [datacenters, setDatacenters] = useState<
     { id: string; name: string }[]
   >([]);
@@ -43,10 +56,13 @@ const TopologyPage: React.FC = () => {
     getAllDatacenters().then((res) => {
       if (res.success && res.data && res.data.length > 0) {
         setDatacenters(res.data);
-        setSelectedDc(res.data[0].id);
+        const requested = res.data.find(
+          (datacenter) => datacenter.id === requestedDatacenterId,
+        );
+        setSelectedDc(requested?.id || res.data[0].id);
       }
     });
-  }, []);
+  }, [requestedDatacenterId]);
 
   // 加载拓扑数据
   useEffect(() => {
@@ -269,6 +285,23 @@ const TopologyPage: React.FC = () => {
         subTitle: '可视化查看设备网络连接关系',
       }}
     >
+      {requestedDatacenterId && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`已恢复站点上下文 ${requestedDatacenterId}`}
+          description="拓扑数据和数据中心选择器已同步切换到目标站点。"
+          action={
+            <Button
+              size="small"
+              onClick={() => history.push('/network/topology')}
+            >
+              清除定位
+            </Button>
+          }
+        />
+      )}
       <Card
         ref={cardRef}
         style={{ background: isFullscreen ? '#fff' : undefined }}

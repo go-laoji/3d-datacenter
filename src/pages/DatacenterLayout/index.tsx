@@ -1,5 +1,5 @@
 import { PageContainer } from '@ant-design/pro-components';
-import { history } from '@umijs/max';
+import { history, useSearchParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -201,6 +201,8 @@ function zoneLabel(type: IDC.LayoutZoneType) {
 }
 
 const DatacenterLayoutPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const requestedDatacenterId = searchParams.get('datacenterId');
   const [datacenters, setDatacenters] = useState<
     Array<{ id: string; name: string; code: string }>
   >([]);
@@ -321,11 +323,13 @@ const DatacenterLayoutPage: React.FC = () => {
     getAllDatacenters().then((res) => {
       if (res.success && res.data) {
         setDatacenters(res.data);
-        const id = res.data[0]?.id;
+        const id =
+          res.data.find((datacenter) => datacenter.id === requestedDatacenterId)
+            ?.id || res.data[0]?.id;
         if (id) setSelectedDc(id);
       }
     });
-  }, []);
+  }, [requestedDatacenterId]);
 
   const load = useCallback(async (dcId: string) => {
     const loadVersion = loadVersionRef.current + 1;
@@ -2349,6 +2353,20 @@ const DatacenterLayoutPage: React.FC = () => {
         subTitle: infoText,
       }}
     >
+      {requestedDatacenterId && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`已恢复站点上下文 ${requestedDatacenterId}`}
+          description="布局编辑器已载入目标站点，未保存保护仍会在切换站点或离开时生效。"
+          action={
+            <Button size="small" onClick={() => history.push('/layout')}>
+              清除定位
+            </Button>
+          }
+        />
+      )}
       <div className={styles.layoutPage}>
         <div className={styles.sidebar}>
           <Card>

@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { devicesData } from './device.mock';
 
 // Mock 设备模板数据 - 预置主流品牌设备
 let deviceTemplates: IDC.DeviceTemplate[] = [
@@ -343,6 +344,30 @@ const waitTime = (time: number = 100) => {
     });
 };
 
+const getDatacenterIdByCabinet = (cabinetId: string) => {
+    if (cabinetId.startsWith('cab-bj-')) return 'dc-001';
+    if (cabinetId.startsWith('cab-sh-')) return 'dc-002';
+    if (cabinetId.startsWith('cab-sz-')) return 'dc-003';
+    if (cabinetId.startsWith('cab-cd-')) return 'dc-004';
+    return undefined;
+};
+
+const decorateTemplate = (template: IDC.DeviceTemplate): IDC.DeviceTemplate => {
+    const referencedDevices = devicesData.filter(device => device.templateId === template.id);
+    const datacenters = new Set(
+        referencedDevices
+            .map(device => getDatacenterIdByCabinet(device.cabinetId))
+            .filter(Boolean),
+    );
+    return {
+        ...template,
+        version: template.version ?? 1,
+        referencedDeviceCount: referencedDevices.length,
+        impactedDatacenterCount: datacenters.size,
+        lastChangeSummary: template.lastChangeSummary || '初始化模板规格',
+    };
+};
+
 export default {
     // 获取所有设备模板（用于下拉选择）- 必须放在 /:id 之前
     'GET /api/idc/device-templates/all': async (req: Request, res: Response) => {
@@ -357,7 +382,7 @@ export default {
         // 返回完整的模板数据（包含portGroups）
         res.json({
             success: true,
-            data: data,
+            data: data.map(decorateTemplate),
         });
     },
 
@@ -385,7 +410,7 @@ export default {
 
         const start = (Number(current) - 1) * Number(pageSize);
         const end = start + Number(pageSize);
-        const paginatedData = filteredData.slice(start, end);
+        const paginatedData = filteredData.slice(start, end).map(decorateTemplate);
 
         res.json({
             success: true,
@@ -403,7 +428,7 @@ export default {
         const template = deviceTemplates.find(t => t.id === id);
 
         if (template) {
-            res.json({ success: true, data: template });
+            res.json({ success: true, data: decorateTemplate(template) });
         } else {
             res.status(404).json({ success: false, errorMessage: '设备模板不存在' });
         }
@@ -430,6 +455,10 @@ export default {
             description: body.description,
             specs: body.specs,
             maxPower: body.maxPower,
+            version: 1,
+            referencedDeviceCount: 0,
+            impactedDatacenterCount: 0,
+            lastChangeSummary: '创建自定义模板',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
@@ -465,10 +494,12 @@ export default {
             ...deviceTemplates[index],
             ...body,
             portGroups: portGroups ?? deviceTemplates[index].portGroups,
+            version: (deviceTemplates[index].version ?? 1) + 1,
+            lastChangeSummary: '更新物理规格并创建新版本',
             updatedAt: new Date().toISOString(),
         };
 
-        res.json({ success: true, data: deviceTemplates[index] });
+        res.json({ success: true, data: decorateTemplate(deviceTemplates[index]) });
     },
 
     // 删除设备模板
@@ -485,6 +516,15 @@ export default {
         // 内置模板不能删除
         if (deviceTemplates[index].isBuiltin) {
             res.status(403).json({ success: false, errorMessage: '内置模板不能删除' });
+            return;
+        }
+
+        const referencedDevices = devicesData.filter(device => device.templateId === id);
+        if (referencedDevices.length > 0) {
+            res.status(409).json({
+                success: false,
+                errorMessage: `仍有 ${referencedDevices.length} 台设备引用该模板，请先停用模板`,
+            });
             return;
         }
 

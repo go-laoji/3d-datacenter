@@ -147,6 +147,10 @@ declare namespace IDC {
     description?: string;
     specs?: Record<string, string>; // 其他规格参数
     maxPower?: number; // 最高功率(W)
+    version?: number;
+    referencedDeviceCount?: number;
+    impactedDatacenterCount?: number;
+    lastChangeSummary?: string;
     createdAt: string;
     updatedAt: string;
   }

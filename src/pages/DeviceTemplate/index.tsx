@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Space,
   Tag,
+  Tooltip,
 } from 'antd';
 import {
   Copy,
@@ -91,6 +92,20 @@ const DeviceTemplatePage: React.FC = () => {
           {categoryIcons[record.category] || categoryIcons.other}
           <span style={{ fontWeight: 500 }}>{record.name}</span>
           {record.isBuiltin && <Tag color="blue">内置</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: '版本与引用',
+      dataIndex: 'version',
+      width: 140,
+      search: false,
+      render: (_, record) => (
+        <Space size={4} wrap>
+          <Tag color="geekblue">v{record.version ?? 1}</Tag>
+          <Tag color={record.referencedDeviceCount ? 'gold' : 'default'}>
+            {record.referencedDeviceCount ?? 0} 台引用
+          </Tag>
         </Space>
       ),
     },
@@ -189,30 +204,42 @@ const DeviceTemplatePage: React.FC = () => {
         >
           克隆
         </Button>,
-        <Popconfirm
+        <Tooltip
           key="delete"
-          title="确定要删除这个设备模板吗？"
-          disabled={record.isBuiltin}
-          onConfirm={async () => {
-            const res = await deleteDeviceTemplate(record.id);
-            if (res.success) {
-              message.success('删除成功');
-              actionRef.current?.reload();
-            } else {
-              message.error(res.errorMessage || '删除失败');
-            }
-          }}
+          title={
+            record.isBuiltin
+              ? '内置模板不可删除'
+              : record.referencedDeviceCount
+                ? `仍有 ${record.referencedDeviceCount} 台设备引用，请优先停用`
+                : '删除未被引用的自定义模板'
+          }
         >
-          <Button
-            type="link"
-            size="small"
-            danger
-            icon={<Trash2 size={14} />}
-            disabled={record.isBuiltin}
+          <Popconfirm
+            title="确定要删除这个设备模板吗？"
+            disabled={record.isBuiltin || Boolean(record.referencedDeviceCount)}
+            onConfirm={async () => {
+              const res = await deleteDeviceTemplate(record.id);
+              if (res.success) {
+                message.success('删除成功');
+                actionRef.current?.reload();
+              } else {
+                message.error(res.errorMessage || '删除失败');
+              }
+            }}
           >
-            删除
-          </Button>
-        </Popconfirm>,
+            <Button
+              type="link"
+              size="small"
+              danger
+              icon={<Trash2 size={14} />}
+              disabled={
+                record.isBuiltin || Boolean(record.referencedDeviceCount)
+              }
+            >
+              删除
+            </Button>
+          </Popconfirm>
+        </Tooltip>,
       ],
     },
   ];
@@ -315,6 +342,16 @@ const DeviceTemplatePage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="U位高度">
                 {currentRow.uHeight}U
+              </Descriptions.Item>
+              <Descriptions.Item label="模板版本">
+                v{currentRow.version ?? 1}
+              </Descriptions.Item>
+              <Descriptions.Item label="引用影响">
+                {currentRow.referencedDeviceCount ?? 0} 台设备 /{' '}
+                {currentRow.impactedDatacenterCount ?? 0} 个数据中心
+              </Descriptions.Item>
+              <Descriptions.Item label="最近变更" span={2}>
+                {currentRow.lastChangeSummary || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="描述" span={2}>
                 {currentRow.description || '-'}

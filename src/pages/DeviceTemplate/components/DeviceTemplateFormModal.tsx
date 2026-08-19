@@ -6,7 +6,7 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import { message } from 'antd';
+import { Alert, message } from 'antd';
 import { useRef, useState } from 'react';
 import PortGroupEditor from './PortGroupEditor';
 import type {
@@ -58,7 +58,7 @@ const DeviceTemplateFormModal: React.FC<DeviceTemplateFormModalProps> = ({
       open={open}
       width={760}
       initialValues={initialValues}
-      modalProps={{ destroyOnClose: true }}
+      modalProps={{ destroyOnHidden: true }}
       onOpenChange={(nextOpen) => {
         if (nextOpen) {
           formRef.current?.setFieldsValue(initialValues);
@@ -79,6 +79,15 @@ const DeviceTemplateFormModal: React.FC<DeviceTemplateFormModalProps> = ({
         );
       }}
     >
+      {mode === 'edit' && Boolean(template?.referencedDeviceCount) && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`此模板已被 ${template?.referencedDeviceCount} 台设备引用`}
+          description={`修改 U 高、功率或端口配置后将创建 v${(template?.version ?? 1) + 1}，现有设备继续保留原版本规格快照。`}
+        />
+      )}
       <ProFormSelect
         name="category"
         label="设备类型"

@@ -172,6 +172,19 @@ export default [
       },
     ],
   },
+  {
+    path: '/operations',
+    name: 'operations',
+    icon: 'solution',
+    routes: [
+      { path: '/operations', redirect: '/operations/notifications' },
+      {
+        path: '/operations/notifications',
+        name: 'notifications',
+        component: './Notifications',
+      },
+    ],
+  },
 
   {
     path: '/403',

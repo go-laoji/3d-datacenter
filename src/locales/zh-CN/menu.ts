@@ -73,4 +73,6 @@ export default {
   'menu.system': '系统治理',
   'menu.system.access': '用户与权限',
   'menu.system.audit': '操作审计',
+  'menu.operations': '事件与协作',
+  'menu.operations.notifications': '通知与值班',
 };

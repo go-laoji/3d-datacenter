@@ -226,7 +226,19 @@ export default {
     // 获取告警列表
     'GET /api/idc/alerts': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { current = 1, pageSize = 10, level, acknowledged, type } = req.query;
+        const {
+            current = 1,
+            pageSize = 10,
+            level,
+            acknowledged,
+            type,
+            keyword,
+            startTime,
+            endTime,
+            deviceId,
+            cabinetId,
+            datacenterId,
+        } = req.query;
 
         let filtered = [...mockAlerts];
 
@@ -239,6 +251,39 @@ export default {
         }
         if (type) {
             filtered = filtered.filter(a => a.type === type);
+        }
+        if (deviceId) {
+            filtered = filtered.filter(a => a.deviceId === String(deviceId));
+        }
+        if (cabinetId) {
+            filtered = filtered.filter(a => a.cabinetId === String(cabinetId));
+        }
+        if (datacenterId) {
+            filtered = filtered.filter(a => a.datacenterId === String(datacenterId));
+        }
+        if (keyword) {
+            const normalizedKeyword = String(keyword).trim().toLowerCase();
+            filtered = filtered.filter(alert =>
+                [
+                    alert.message,
+                    alert.deviceName,
+                    alert.cabinetName,
+                    alert.datacenterName,
+                    alert.ruleName,
+                ].some(value => value?.toLowerCase().includes(normalizedKeyword)),
+            );
+        }
+        if (startTime) {
+            const startTimestamp = new Date(String(startTime)).getTime();
+            filtered = filtered.filter(
+                alert => new Date(alert.createdAt).getTime() >= startTimestamp,
+            );
+        }
+        if (endTime) {
+            const endTimestamp = new Date(String(endTime)).getTime();
+            filtered = filtered.filter(
+                alert => new Date(alert.createdAt).getTime() <= endTimestamp,
+            );
         }
 
         // 分页
@@ -259,13 +304,14 @@ export default {
     'GET /api/idc/alerts/stats': async (_req: Request, res: Response) => {
         await waitTime(200);
 
+        const activeAlerts = mockAlerts.filter(alert => !alert.resolvedAt);
         const stats: IDC.AlertStats = {
             total: mockAlerts.length,
-            critical: mockAlerts.filter(a => a.level === 'critical').length,
-            error: mockAlerts.filter(a => a.level === 'error').length,
-            warning: mockAlerts.filter(a => a.level === 'warning').length,
-            info: mockAlerts.filter(a => a.level === 'info').length,
-            unacknowledged: mockAlerts.filter(a => !a.acknowledged).length,
+            critical: activeAlerts.filter(a => a.level === 'critical').length,
+            error: activeAlerts.filter(a => a.level === 'error').length,
+            warning: activeAlerts.filter(a => a.level === 'warning').length,
+            info: activeAlerts.filter(a => a.level === 'info').length,
+            unacknowledged: activeAlerts.filter(a => !a.acknowledged).length,
             todayNew: 3,
             avgResolveTime: 45,
         };
@@ -276,16 +322,26 @@ export default {
     // 确认告警
     'POST /api/idc/alerts/:id/acknowledge': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { id } = req.params;
-        const { notes } = req.body;
+        const id = String(req.params.id);
+        const { notes } = req.body as { notes?: string };
 
         const alert = mockAlerts.find(a => a.id === id);
-        if (alert) {
-            alert.acknowledged = true;
-            alert.acknowledgedAt = new Date().toISOString();
-            alert.acknowledgedBy = '当前用户';
-            if (notes) alert.notes = notes;
+        if (!alert) {
+            res.status(404).json({ success: false, errorMessage: '告警不存在' });
+            return;
         }
+        if (alert.resolvedAt) {
+            res.status(409).json({ success: false, errorMessage: '已解决的告警不能再确认' });
+            return;
+        }
+        if (alert.acknowledged) {
+            res.status(409).json({ success: false, errorMessage: '告警已确认' });
+            return;
+        }
+        alert.acknowledged = true;
+        alert.acknowledgedAt = new Date().toISOString();
+        alert.acknowledgedBy = '当前用户';
+        if (notes?.trim()) alert.notes = notes.trim();
 
         res.json({ success: true, message: `告警 ${id} 已确认` });
     },
@@ -293,15 +349,25 @@ export default {
     // 解决告警
     'POST /api/idc/alerts/:id/resolve': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { id } = req.params;
-        const { notes } = req.body;
+        const id = String(req.params.id);
+        const { notes } = req.body as { notes?: string };
 
         const alert = mockAlerts.find(a => a.id === id);
-        if (alert) {
-            alert.resolvedAt = new Date().toISOString();
-            alert.resolvedBy = '当前用户';
-            if (notes) alert.notes = notes;
+        if (!alert) {
+            res.status(404).json({ success: false, errorMessage: '告警不存在' });
+            return;
         }
+        if (alert.resolvedAt) {
+            res.status(409).json({ success: false, errorMessage: '告警已解决' });
+            return;
+        }
+        if (!alert.acknowledged) {
+            res.status(409).json({ success: false, errorMessage: '请先确认告警' });
+            return;
+        }
+        alert.resolvedAt = new Date().toISOString();
+        alert.resolvedBy = '当前用户';
+        if (notes?.trim()) alert.notes = notes.trim();
 
         res.json({ success: true, message: `告警 ${id} 已解决` });
     },
@@ -309,18 +375,66 @@ export default {
     // 批量确认告警
     'POST /api/idc/alerts/batch-acknowledge': async (req: Request, res: Response) => {
         await waitTime(500);
-        const { ids } = req.body;
+        const { ids = [] } = req.body as { ids?: string[] };
+        const result: IDC.BatchAlertOperationResult = {
+            succeededIds: [],
+            failed: [],
+        };
 
-        ids.forEach((id: string) => {
+        ids.forEach((id) => {
             const alert = mockAlerts.find(a => a.id === id);
-            if (alert) {
-                alert.acknowledged = true;
-                alert.acknowledgedAt = new Date().toISOString();
-                alert.acknowledgedBy = '当前用户';
+            if (!alert) {
+                result.failed.push({ id, reason: '告警不存在' });
+                return;
             }
+            if (alert.resolvedAt) {
+                result.failed.push({ id, reason: '告警已解决' });
+                return;
+            }
+            if (alert.acknowledged) {
+                result.failed.push({ id, reason: '告警已确认' });
+                return;
+            }
+
+            alert.acknowledged = true;
+            alert.acknowledgedAt = new Date().toISOString();
+            alert.acknowledgedBy = '当前用户';
+            result.succeededIds.push(id);
         });
 
-        res.json({ success: true, message: `已批量确认 ${ids.length} 条告警` });
+        res.json({ success: true, data: result });
+    },
+
+    // 批量解决告警
+    'POST /api/idc/alerts/batch-resolve': async (req: Request, res: Response) => {
+        await waitTime(500);
+        const { ids = [] } = req.body as { ids?: string[] };
+        const result: IDC.BatchAlertOperationResult = {
+            succeededIds: [],
+            failed: [],
+        };
+
+        ids.forEach((id) => {
+            const alert = mockAlerts.find(item => item.id === id);
+            if (!alert) {
+                result.failed.push({ id, reason: '告警不存在' });
+                return;
+            }
+            if (alert.resolvedAt) {
+                result.failed.push({ id, reason: '告警已解决' });
+                return;
+            }
+            if (!alert.acknowledged) {
+                result.failed.push({ id, reason: '请先确认告警' });
+                return;
+            }
+
+            alert.resolvedAt = new Date().toISOString();
+            alert.resolvedBy = '当前用户';
+            result.succeededIds.push(id);
+        });
+
+        res.json({ success: true, data: result });
     },
 
     // 获取告警规则列表
@@ -350,7 +464,7 @@ export default {
     // 更新告警规则
     'PUT /api/idc/alert-rules/:id': async (req: Request, res: Response) => {
         await waitTime(500);
-        const { id } = req.params;
+        const id = String(req.params.id);
         const body = req.body;
 
         const index = mockRules.findIndex(r => r.id === id);
@@ -369,7 +483,7 @@ export default {
     // 删除告警规则
     'DELETE /api/idc/alert-rules/:id': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const index = mockRules.findIndex(r => r.id === id);
         if (index !== -1) {
@@ -383,7 +497,7 @@ export default {
     // 切换规则启用状态
     'POST /api/idc/alert-rules/:id/toggle': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const rule = mockRules.find(r => r.id === id);
         if (rule) {

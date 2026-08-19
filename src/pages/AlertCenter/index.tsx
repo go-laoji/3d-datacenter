@@ -38,6 +38,12 @@ import {
   getAlerts,
   resolveAlert,
 } from '@/services/idc/alert';
+import AlertDetailDrawer from './AlertDetailDrawer';
+import {
+  alertLevelConfig,
+  alertTypeLabels,
+  getAlertActionableIds,
+} from './alertPresentation';
 import styles from './index.less';
 
 const { TextArea } = Input;
@@ -50,24 +56,36 @@ const levelIcons: Record<string, React.ReactNode> = {
   info: <Info size={18} className={styles.levelInfo} />,
 };
 
+const showBatchResult = (
+  actionLabel: string,
+  result: IDC.BatchAlertOperationResult,
+) => {
+  if (result.failed.length === 0) {
+    message.success(
+      `已批量${actionLabel} ${result.succeededIds.length} 条告警`,
+    );
+    return;
+  }
+  Modal.warning({
+    title: `批量${actionLabel}部分完成`,
+    content: (
+      <div>
+        <p>
+          成功 {result.succeededIds.length} 条，失败 {result.failed.length} 条。
+        </p>
+        <ul style={{ paddingLeft: 20 }}>
+          {result.failed.map((item) => (
+            <li key={item.id}>
+              {item.id}：{item.reason}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ),
+  });
+};
+
 // 告警级别配置
-const levelConfig: Record<string, { color: string; text: string }> = {
-  critical: { color: 'error', text: '紧急' },
-  error: { color: 'volcano', text: '错误' },
-  warning: { color: 'warning', text: '警告' },
-  info: { color: 'processing', text: '提示' },
-};
-
-// 告警类型配置
-const typeConfig: Record<string, string> = {
-  temperature: '温度告警',
-  humidity: '湿度告警',
-  power: '功率告警',
-  device_status: '设备状态',
-  port_status: '端口状态',
-  capacity: '容量预警',
-};
-
 const AlertCenter: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState<IDC.AlertDetail[]>([]);
@@ -83,10 +101,15 @@ const AlertCenter: React.FC = () => {
   const [currentAlert, setCurrentAlert] = useState<IDC.AlertDetail | null>(
     null,
   );
+  const [detailAlert, setDetailAlert] = useState<IDC.AlertDetail>();
   const [ackNotes, setAckNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const { acknowledgeableIds, resolvableIds } = getAlertActionableIds(
+    alerts,
+    selectedRows,
+  );
 
   // 自动刷新（30秒轮询）
   useEffect(() => {
@@ -118,7 +141,7 @@ const AlertCenter: React.FC = () => {
 
       if (alertRes.success && alertRes.data) {
         setAlerts(alertRes.data);
-        setTotal(alertRes.total || 0);
+        setTotal(alertRes.total ?? 0);
       }
       if (statsRes.success && statsRes.data) {
         setStats(statsRes.data);
@@ -147,7 +170,9 @@ const AlertCenter: React.FC = () => {
       if (res.success) {
         message.success('告警已确认');
         setAckModalVisible(false);
-        fetchData();
+        void fetchData();
+      } else {
+        message.error(res.errorMessage || '确认失败');
       }
     } catch (_error) {
       message.error('确认失败');
@@ -161,7 +186,9 @@ const AlertCenter: React.FC = () => {
       const res = await resolveAlert(alert.id);
       if (res.success) {
         message.success('告警已解决');
-        fetchData();
+        void fetchData();
+      } else {
+        message.error(res.errorMessage || '操作失败');
       }
     } catch (_error) {
       message.error('操作失败');
@@ -169,17 +196,17 @@ const AlertCenter: React.FC = () => {
   };
 
   const handleBatchAcknowledge = async () => {
-    if (selectedRows.length === 0) {
+    if (acknowledgeableIds.length === 0) {
       message.warning('请选择要确认的告警');
       return;
     }
 
     try {
-      const res = await batchAcknowledgeAlerts(selectedRows);
-      if (res.success) {
-        message.success(`已批量确认 ${selectedRows.length} 条告警`);
+      const res = await batchAcknowledgeAlerts(acknowledgeableIds);
+      if (res.success && res.data) {
+        showBatchResult('确认', res.data);
         setSelectedRows([]);
-        fetchData();
+        void fetchData();
       }
     } catch (_error) {
       message.error('批量确认失败');
@@ -187,16 +214,16 @@ const AlertCenter: React.FC = () => {
   };
 
   const handleBatchResolve = async () => {
-    if (selectedRows.length === 0) {
-      message.warning('请选择要解决的告警');
+    if (resolvableIds.length === 0) {
+      message.warning('请选择已确认且未解决的告警');
       return;
     }
     try {
-      const res = await batchResolveAlerts(selectedRows);
-      if (res.success) {
-        message.success(`已批量解决 ${selectedRows.length} 条告警`);
+      const res = await batchResolveAlerts(resolvableIds);
+      if (res.success && res.data) {
+        showBatchResult('解决', res.data);
         setSelectedRows([]);
-        fetchData();
+        void fetchData();
       }
     } catch (_error) {
       message.error('批量解决失败');
@@ -231,7 +258,9 @@ const AlertCenter: React.FC = () => {
       key: 'level',
       width: 80,
       render: (level: string) => (
-        <Tooltip title={levelConfig[level]?.text}>{levelIcons[level]}</Tooltip>
+        <Tooltip title={alertLevelConfig[level as IDC.Alert['level']]?.text}>
+          {levelIcons[level]}
+        </Tooltip>
       ),
     },
     {
@@ -270,7 +299,7 @@ const AlertCenter: React.FC = () => {
       dataIndex: 'type',
       key: 'type',
       width: 100,
-      render: (type: string) => <Tag>{typeConfig[type] || type}</Tag>,
+      render: (type: string) => <Tag>{alertTypeLabels[type] || type}</Tag>,
     },
     {
       title: '时间',
@@ -336,7 +365,11 @@ const AlertCenter: React.FC = () => {
               </Button>
             </Popconfirm>
           )}
-          <Button type="link" size="small">
+          <Button
+            type="link"
+            size="small"
+            onClick={() => setDetailAlert(record)}
+          >
             详情
           </Button>
         </Space>
@@ -368,28 +401,30 @@ const AlertCenter: React.FC = () => {
         <Col xs={12} sm={6}>
           <Card className={`${styles.statCard} ${styles.critical}`}>
             <XCircle className={styles.statIcon} />
-            <div className={styles.statValue}>{stats?.critical || 0}</div>
+            <div className={styles.statValue}>{stats?.critical ?? '--'}</div>
             <div className={styles.statLabel}>紧急告警</div>
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card className={`${styles.statCard} ${styles.error}`}>
             <AlertCircle className={styles.statIcon} />
-            <div className={styles.statValue}>{stats?.error || 0}</div>
+            <div className={styles.statValue}>{stats?.error ?? '--'}</div>
             <div className={styles.statLabel}>错误告警</div>
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card className={`${styles.statCard} ${styles.warning}`}>
             <AlertTriangle className={styles.statIcon} />
-            <div className={styles.statValue}>{stats?.warning || 0}</div>
+            <div className={styles.statValue}>{stats?.warning ?? '--'}</div>
             <div className={styles.statLabel}>警告告警</div>
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card className={`${styles.statCard} ${styles.info}`}>
             <Info className={styles.statIcon} />
-            <div className={styles.statValue}>{stats?.unacknowledged || 0}</div>
+            <div className={styles.statValue}>
+              {stats?.unacknowledged ?? '--'}
+            </div>
             <div className={styles.statLabel}>待处理</div>
           </Card>
         </Col>
@@ -407,7 +442,11 @@ const AlertCenter: React.FC = () => {
           <Space>
             <Select
               value={selectedLevel}
-              onChange={setSelectedLevel}
+              onChange={(value) => {
+                setCurrent(1);
+                setSelectedRows([]);
+                setSelectedLevel(value || '');
+              }}
               style={{ width: 120 }}
               placeholder="告警级别"
               allowClear
@@ -419,7 +458,11 @@ const AlertCenter: React.FC = () => {
             </Select>
             <Select
               value={selectedAck}
-              onChange={setSelectedAck}
+              onChange={(value) => {
+                setCurrent(1);
+                setSelectedRows([]);
+                setSelectedAck(value || '');
+              }}
               style={{ width: 120 }}
               placeholder="处理状态"
               allowClear
@@ -429,12 +472,16 @@ const AlertCenter: React.FC = () => {
             </Select>
             <Select
               value={selectedType}
-              onChange={setSelectedType}
+              onChange={(value) => {
+                setCurrent(1);
+                setSelectedRows([]);
+                setSelectedType(value || '');
+              }}
               style={{ width: 120 }}
               placeholder="告警类型"
               allowClear
             >
-              {Object.entries(typeConfig).map(([key, label]) => (
+              {Object.entries(alertTypeLabels).map(([key, label]) => (
                 <Select.Option key={key} value={key}>
                   {label}
                 </Select.Option>
@@ -442,11 +489,18 @@ const AlertCenter: React.FC = () => {
             </Select>
             {selectedRows.length > 0 && (
               <>
-                <Button type="primary" onClick={handleBatchAcknowledge}>
-                  批量确认 ({selectedRows.length})
+                <Button
+                  type="primary"
+                  disabled={acknowledgeableIds.length === 0}
+                  onClick={handleBatchAcknowledge}
+                >
+                  批量确认 ({acknowledgeableIds.length})
                 </Button>
-                <Button onClick={handleBatchResolve}>
-                  批量解决 ({selectedRows.length})
+                <Button
+                  disabled={resolvableIds.length === 0}
+                  onClick={handleBatchResolve}
+                >
+                  批量解决 ({resolvableIds.length})
                 </Button>
               </>
             )}
@@ -472,7 +526,7 @@ const AlertCenter: React.FC = () => {
             selectedRowKeys: selectedRows,
             onChange: (keys) => setSelectedRows(keys as string[]),
             getCheckboxProps: (record) => ({
-              disabled: record.acknowledged,
+              disabled: Boolean(record.resolvedAt),
             }),
           }}
           rowClassName={(record) =>
@@ -487,6 +541,7 @@ const AlertCenter: React.FC = () => {
             onChange: (page, size) => {
               setCurrent(page);
               setPageSize(size);
+              setSelectedRows([]);
             },
           }}
         />
@@ -530,6 +585,19 @@ const AlertCenter: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      <AlertDetailDrawer
+        alert={detailAlert}
+        onClose={() => setDetailAlert(undefined)}
+        onAcknowledge={(alert) => {
+          setDetailAlert(undefined);
+          handleAcknowledge(alert);
+        }}
+        onResolve={(alert) => {
+          setDetailAlert(undefined);
+          handleResolve(alert);
+        }}
+      />
     </PageContainer>
   );
 };

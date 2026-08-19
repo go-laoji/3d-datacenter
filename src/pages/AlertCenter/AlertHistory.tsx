@@ -5,11 +5,13 @@ import {
   Card,
   DatePicker,
   Input,
+  message,
   Select,
   Space,
   Table,
   Tag,
 } from 'antd';
+import type { Dayjs } from 'dayjs';
 import {
   ArrowLeft,
   Box,
@@ -20,27 +22,10 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getAlerts } from '@/services/idc/alert';
+import { alertLevelConfig, alertTypeLabels } from './alertPresentation';
 import styles from './index.less';
 
 const { RangePicker } = DatePicker;
-
-// 告警级别配置
-const levelConfig: Record<string, { color: string; text: string }> = {
-  critical: { color: 'error', text: '紧急' },
-  error: { color: 'volcano', text: '错误' },
-  warning: { color: 'warning', text: '警告' },
-  info: { color: 'processing', text: '提示' },
-};
-
-// 告警类型配置
-const typeConfig: Record<string, string> = {
-  temperature: '温度告警',
-  humidity: '湿度告警',
-  power: '功率告警',
-  device_status: '设备状态',
-  port_status: '端口状态',
-  capacity: '容量预警',
-};
 
 const AlertHistory: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -51,10 +36,19 @@ const AlertHistory: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<string>('');
   const [selectedType, setSelectedType] = useState<string>('');
   const [searchText, setSearchText] = useState<string>('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
 
   useEffect(() => {
     fetchData();
-  }, [current, pageSize, selectedLevel, selectedType]);
+  }, [
+    current,
+    pageSize,
+    selectedLevel,
+    selectedType,
+    appliedKeyword,
+    dateRange,
+  ]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -64,25 +58,17 @@ const AlertHistory: React.FC = () => {
         pageSize,
         level: selectedLevel as IDC.Alert['level'] | undefined,
         type: selectedType || undefined,
+        keyword: appliedKeyword || undefined,
+        startTime: dateRange?.[0].toISOString(),
+        endTime: dateRange?.[1].toISOString(),
       });
 
       if (res.success && res.data) {
-        // 客户端搜索过滤
-        let filtered = res.data;
-        if (searchText) {
-          const lower = searchText.toLowerCase();
-          filtered = filtered.filter(
-            (a) =>
-              a.message.toLowerCase().includes(lower) ||
-              a.deviceName?.toLowerCase().includes(lower) ||
-              a.cabinetName?.toLowerCase().includes(lower),
-          );
-        }
-        setAlerts(filtered);
-        setTotal(res.total || 0);
+        setAlerts(res.data);
+        setTotal(res.total ?? 0);
       }
-    } catch (error) {
-      console.error('Failed to fetch alert history:', error);
+    } catch (_error) {
+      message.error('获取告警历史失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -107,7 +93,10 @@ const AlertHistory: React.FC = () => {
       key: 'level',
       width: 80,
       render: (level: string) => {
-        const cfg = levelConfig[level] || { color: 'default', text: level };
+        const cfg = alertLevelConfig[level as IDC.Alert['level']] || {
+          color: 'default',
+          text: level,
+        };
         return <Tag color={cfg.color}>{cfg.text}</Tag>;
       },
     },
@@ -116,7 +105,7 @@ const AlertHistory: React.FC = () => {
       dataIndex: 'type',
       key: 'type',
       width: 100,
-      render: (type: string) => <Tag>{typeConfig[type] || type}</Tag>,
+      render: (type: string) => <Tag>{alertTypeLabels[type] || type}</Tag>,
     },
     {
       title: '告警内容',
@@ -221,12 +210,18 @@ const AlertHistory: React.FC = () => {
               style={{ width: 250 }}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              onSearch={fetchData}
+              onSearch={(value) => {
+                setCurrent(1);
+                setAppliedKeyword(value.trim());
+              }}
               enterButton={<Search size={14} />}
             />
             <Select
               value={selectedLevel}
-              onChange={setSelectedLevel}
+              onChange={(value) => {
+                setCurrent(1);
+                setSelectedLevel(value || '');
+              }}
               style={{ width: 120 }}
               placeholder="告警级别"
               allowClear
@@ -238,18 +233,29 @@ const AlertHistory: React.FC = () => {
             </Select>
             <Select
               value={selectedType}
-              onChange={setSelectedType}
+              onChange={(value) => {
+                setCurrent(1);
+                setSelectedType(value || '');
+              }}
               style={{ width: 120 }}
               placeholder="告警类型"
               allowClear
             >
-              {Object.entries(typeConfig).map(([key, label]) => (
+              {Object.entries(alertTypeLabels).map(([key, label]) => (
                 <Select.Option key={key} value={key}>
                   {label}
                 </Select.Option>
               ))}
             </Select>
-            <RangePicker placeholder={['开始时间', '结束时间']} showTime />
+            <RangePicker
+              value={dateRange}
+              placeholder={['开始时间', '结束时间']}
+              showTime
+              onChange={(value) => {
+                setCurrent(1);
+                setDateRange(value as [Dayjs, Dayjs] | null);
+              }}
+            />
           </Space>
         </div>
 

@@ -33,7 +33,7 @@ export async function resolveAlert(id: string, notes?: string) {
 
 /** 批量确认告警 */
 export async function batchAcknowledgeAlerts(ids: string[]) {
-    return request<IDC.ApiResponse>('/api/idc/alerts/batch-acknowledge', {
+    return request<IDC.ApiResponse<IDC.BatchAlertOperationResult>>('/api/idc/alerts/batch-acknowledge', {
         method: 'POST',
         data: { ids },
     });
@@ -41,7 +41,7 @@ export async function batchAcknowledgeAlerts(ids: string[]) {
 
 /** 批量解决告警 */
 export async function batchResolveAlerts(ids: string[]) {
-    return request<IDC.ApiResponse>('/api/idc/alerts/batch-resolve', {
+    return request<IDC.ApiResponse<IDC.BatchAlertOperationResult>>('/api/idc/alerts/batch-resolve', {
         method: 'POST',
         data: { ids },
     });

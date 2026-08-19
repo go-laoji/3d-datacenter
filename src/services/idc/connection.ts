@@ -1,5 +1,41 @@
 import { request } from '@umijs/max';
 
+export interface ConnectionHistoryItem {
+    id: string;
+    action: string;
+    operator: string;
+    occurredAt: string;
+    detail: string;
+}
+
+export interface ConnectionView extends IDC.Connection {
+    sourceDeviceName: string;
+    sourceDeviceLocation: string;
+    sourcePortName: string;
+    sourcePortSpeed: string;
+    targetDeviceName: string;
+    targetDeviceLocation: string;
+    targetPortName: string;
+    targetPortSpeed: string;
+    impact: string[];
+    history: ConnectionHistoryItem[];
+}
+
+export interface ConnectionValidation {
+    valid: boolean;
+    blockers: string[];
+    warnings: string[];
+}
+
+export interface ConnectionImportRow {
+    row: number;
+    cableNumber: string;
+    source: string;
+    target: string;
+    status: 'ready' | 'conflict' | 'invalid';
+    message: string;
+}
+
 /** 获取连线列表 */
 export async function getConnections(
     params?: IDC.PageParams & {
@@ -9,9 +45,11 @@ export async function getConnections(
         targetDeviceId?: string;
         status?: string;
         cableNumber?: string;
+        deviceId?: string;
+        keyword?: string;
     },
 ) {
-    return request<IDC.PageResult<IDC.Connection>>('/api/idc/connections', {
+    return request<IDC.PageResult<ConnectionView>>('/api/idc/connections', {
         method: 'GET',
         params,
     });
@@ -19,8 +57,29 @@ export async function getConnections(
 
 /** 获取单条连线 */
 export async function getConnection(id: string) {
-    return request<IDC.ApiResponse<IDC.Connection>>(`/api/idc/connections/${id}`, {
+    return request<IDC.ApiResponse<ConnectionView>>(`/api/idc/connections/${id}`, {
         method: 'GET',
+    });
+}
+
+export async function validateConnection(data: Pick<IDC.ConnectionCreateParams, 'sourceDeviceId' | 'sourcePortId' | 'targetDeviceId' | 'targetPortId' | 'cableType'>) {
+    return request<IDC.ApiResponse<ConnectionValidation>>('/api/idc/connections/validate', {
+        method: 'POST',
+        data,
+    });
+}
+
+export async function previewConnectionImport(content: string) {
+    return request<IDC.ApiResponse<{ rows: ConnectionImportRow[]; ready: number; conflicts: number }>>('/api/idc/connections/import-preview', {
+        method: 'POST',
+        data: { content },
+    });
+}
+
+export async function applyConnectionImport(rows: ConnectionImportRow[]) {
+    return request<IDC.ApiResponse<{ created: number; skipped: number }>>('/api/idc/connections/import-apply', {
+        method: 'POST',
+        data: { rows },
     });
 }
 

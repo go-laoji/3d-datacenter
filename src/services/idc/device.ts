@@ -3,6 +3,7 @@ import { request } from '@umijs/max';
 /** 获取设备列表 */
 export async function getDevices(
     params?: IDC.PageParams & {
+        id?: string;
         cabinetId?: string;
         templateId?: string;
         name?: string;

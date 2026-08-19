@@ -8,6 +8,7 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
+import { history, useSearchParams } from '@umijs/max';
 import {
   Alert,
   Badge,
@@ -224,7 +225,11 @@ const USlotSelector: React.FC<{
 };
 
 const DevicePage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const requestedDeviceId = searchParams.get('deviceId') || undefined;
+  const requestedStatus = searchParams.get('status') || undefined;
   const actionRef = useRef<ActionType>(null);
+  const openedDeepLinkDeviceRef = useRef<string | undefined>(undefined);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
@@ -258,6 +263,11 @@ const DevicePage: React.FC = () => {
       if (res.success) setCabinets(res.data || []);
     });
   }, []);
+
+  useEffect(() => {
+    if (!requestedDeviceId) openedDeepLinkDeviceRef.current = undefined;
+    actionRef.current?.reload();
+  }, [requestedDeviceId, requestedStatus]);
 
   const selectedTemplate = useMemo(() => {
     return templates.find((t) => t.id === selectedTemplateId);
@@ -688,6 +698,28 @@ const DevicePage: React.FC = () => {
         subTitle: '管理已上架的设备',
       }}
     >
+      {(requestedDeviceId || requestedStatus) && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={
+            requestedDeviceId
+              ? `已从工作台定位设备 ${requestedDeviceId}`
+              : `已按“${statusConfig[requestedStatus || '']?.text || requestedStatus}”状态筛选设备`
+          }
+          description={
+            requestedDeviceId
+              ? '设备详情将在数据加载完成后自动展开。'
+              : '列表仅展示与工作台指标一致的设备，可继续叠加其他筛选条件。'
+          }
+          action={
+            <Button size="small" onClick={() => history.push('/idc/device')}>
+              清除定位
+            </Button>
+          }
+        />
+      )}
       <ProTable<IDC.Device>
         headerTitle="设备列表"
         actionRef={actionRef}
@@ -696,15 +728,28 @@ const DevicePage: React.FC = () => {
         scroll={{ x: 1600 }}
         request={async (params) => {
           const res = await getDevices({
+            id: requestedDeviceId,
             current: params.current,
             pageSize: params.pageSize,
             cabinetId: params.cabinetId,
             name: params.name,
-            status: params.status,
+            status: params.status || requestedStatus,
             assetCode: params.assetCode,
             managementIp: params.managementIp,
             department: params.department,
           });
+          const deepLinkedDevice = requestedDeviceId
+            ? res.data?.[0]
+            : undefined;
+          if (
+            requestedDeviceId &&
+            deepLinkedDevice &&
+            openedDeepLinkDeviceRef.current !== requestedDeviceId
+          ) {
+            openedDeepLinkDeviceRef.current = requestedDeviceId;
+            setCurrentRow(deepLinkedDevice);
+            setDetailDrawerOpen(true);
+          }
           return {
             data: res.data || [],
             success: res.success,

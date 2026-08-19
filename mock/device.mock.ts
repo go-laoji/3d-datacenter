@@ -278,6 +278,7 @@ export default {
         const {
             current = 1,
             pageSize = 10,
+            id,
             cabinetId,
             templateId,
             name,
@@ -290,6 +291,9 @@ export default {
 
         let filteredData = [...devices];
 
+        if (id) {
+            filteredData = filteredData.filter(d => d.id === String(id));
+        }
         if (cabinetId) {
             filteredData = filteredData.filter(d => d.cabinetId === cabinetId);
         }

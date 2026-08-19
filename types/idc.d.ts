@@ -41,8 +41,17 @@ declare namespace IDC {
     description?: string;
     contact?: string; // 联系人
     phone?: string; // 联系电话
+    archivedAt?: string;
     createdAt: string;
     updatedAt: string;
+  }
+
+  interface DatacenterDependencyImpact {
+    cabinetCount: number;
+    deviceCount: number;
+    activeAlertCount: number;
+    layoutCount: number;
+    connectionCount: number;
   }
 
   interface DatacenterCreateParams {

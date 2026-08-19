@@ -73,6 +73,13 @@ const waitTime = (time: number = 100) => {
     });
 };
 
+const dependencyImpacts: Record<string, IDC.DatacenterDependencyImpact> = {
+    'dc-001': { cabinetCount: 20, deviceCount: 6, activeAlertCount: 2, layoutCount: 1, connectionCount: 18 },
+    'dc-002': { cabinetCount: 15, deviceCount: 4, activeAlertCount: 1, layoutCount: 1, connectionCount: 12 },
+    'dc-003': { cabinetCount: 18, deviceCount: 2, activeAlertCount: 0, layoutCount: 1, connectionCount: 8 },
+    'dc-004': { cabinetCount: 12, deviceCount: 0, activeAlertCount: 0, layoutCount: 1, connectionCount: 0 },
+};
+
 export default {
     // 获取所有数据中心（用于下拉选择）- 必须放在 /:id 之前
     'GET /api/idc/datacenters/all': async (_req: Request, res: Response) => {
@@ -111,6 +118,43 @@ export default {
             current: Number(current),
             pageSize: Number(pageSize),
         });
+    },
+
+    'GET /api/idc/datacenters/:id/archive-impact': async (req: Request, res: Response) => {
+        await waitTime(180);
+        const id = String(req.params.id);
+        const datacenter = datacenters.find(d => d.id === id);
+        if (!datacenter) {
+            res.status(404).json({ success: false, errorMessage: '数据中心不存在' });
+            return;
+        }
+        res.json({
+            success: true,
+            data: dependencyImpacts[id] || {
+                cabinetCount: 0,
+                deviceCount: 0,
+                activeAlertCount: 0,
+                layoutCount: 0,
+                connectionCount: 0,
+            },
+        });
+    },
+
+    'POST /api/idc/datacenters/:id/archive': async (req: Request, res: Response) => {
+        await waitTime(350);
+        const id = String(req.params.id);
+        const index = datacenters.findIndex(d => d.id === id);
+        if (index === -1) {
+            res.status(404).json({ success: false, errorMessage: '数据中心不存在' });
+            return;
+        }
+        datacenters[index] = {
+            ...datacenters[index],
+            status: 'offline',
+            archivedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        res.json({ success: true, data: datacenters[index] });
     },
 
     // 获取单个数据中心

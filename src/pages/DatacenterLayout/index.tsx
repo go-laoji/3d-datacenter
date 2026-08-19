@@ -50,6 +50,10 @@ import {
   saveDatacenterLayout,
 } from '@/services/idc/layout';
 import styles from './index.less';
+import {
+  getLayoutContentFingerprint,
+  isEditableKeyboardTarget,
+} from './layoutEditorSession';
 
 type ToolMode =
   | 'select'
@@ -197,12 +201,16 @@ function zoneLabel(type: IDC.LayoutZoneType) {
 }
 
 const DatacenterLayoutPage: React.FC = () => {
-  const [datacenters, setDatacenters] = useState<IDC.Datacenter[]>([]);
+  const [datacenters, setDatacenters] = useState<
+    Array<{ id: string; name: string; code: string }>
+  >([]);
   const [selectedDc, setSelectedDc] = useState<string>();
   const [cabinets, setCabinets] = useState<IDC.Cabinet[]>([]);
   const [layout, setLayout] = useState<IDC.DatacenterLayout | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   const [tool, setTool] = useState<ToolMode>('select');
   const [selected, setSelected] = useState<Selected>(null);
@@ -252,6 +260,9 @@ const DatacenterLayoutPage: React.FC = () => {
     past: IDC.DatacenterLayout[];
     future: IDC.DatacenterLayout[];
   }>({ past: [], future: [] });
+  const savedFingerprintRef = useRef<string | undefined>(undefined);
+  const navigationConfirmOpenRef = useRef(false);
+  const loadVersionRef = useRef(0);
   const dragRef = useRef<{
     kind:
       | 'pan'
@@ -310,29 +321,48 @@ const DatacenterLayoutPage: React.FC = () => {
     getAllDatacenters().then((res) => {
       if (res.success && res.data) {
         setDatacenters(res.data);
-        const id = (res.data as any)?.[0]?.id as string | undefined;
+        const id = res.data[0]?.id;
         if (id) setSelectedDc(id);
       }
     });
   }, []);
 
   const load = useCallback(async (dcId: string) => {
+    const loadVersion = loadVersionRef.current + 1;
+    loadVersionRef.current = loadVersion;
     setLoading(true);
+    setLoadError(undefined);
+    setIsDirty(false);
+    savedFingerprintRef.current = undefined;
+    historyRef.current = { past: [], future: [] };
+    clipboardRef.current = null;
+    setHistoryTick((tick) => tick + 1);
+    setCabinets([]);
+    setLayout(null);
+    setSelected(null);
+    setSelection({ cabinets: [], zones: [], facilities: [] });
     try {
       const [cabRes, layoutRes] = await Promise.all([
         getCabinetsByDatacenter(dcId),
         getDatacenterLayout(dcId),
       ]);
+      if (loadVersion !== loadVersionRef.current) return;
       if (cabRes.success && cabRes.data) setCabinets(cabRes.data);
       if (layoutRes.success && layoutRes.data) {
+        savedFingerprintRef.current = getLayoutContentFingerprint(
+          layoutRes.data,
+        );
         setLayout(layoutRes.data);
       } else {
+        savedFingerprintRef.current = undefined;
         setLayout(null);
       }
-      setSelected(null);
-      setSelection({ cabinets: [], zones: [], facilities: [] });
+    } catch (_error) {
+      if (loadVersion === loadVersionRef.current) {
+        setLoadError('布局加载失败，未创建空白草稿。');
+      }
     } finally {
-      setLoading(false);
+      if (loadVersion === loadVersionRef.current) setLoading(false);
     }
   }, []);
 
@@ -356,14 +386,59 @@ const DatacenterLayoutPage: React.FC = () => {
     return [
       ...items,
       ...missing.map((c) => {
-        const row = (c as any).row as number | undefined;
-        const column = (c as any).column as number | undefined;
+        const { row, column } = c;
         const x = typeof column === 'number' ? column * 1.2 : 0;
         const y = typeof row === 'number' ? row * 1.4 : 0;
         return { cabinetId: c.id, x, y, rotation: 0 };
       }),
     ];
   }, [layout?.cabinets, cabinets]);
+
+  useEffect(() => {
+    if (!layout) {
+      setIsDirty(false);
+      return;
+    }
+    const currentFingerprint = getLayoutContentFingerprint(
+      layout,
+      cabinetItems,
+    );
+    setIsDirty(currentFingerprint !== savedFingerprintRef.current);
+  }, [cabinetItems, layout]);
+
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const unblock = history.block((transition) => {
+      if (navigationConfirmOpenRef.current) return;
+      navigationConfirmOpenRef.current = true;
+      Modal.confirm({
+        title: '布局尚未保存',
+        content: '离开编辑器将丢失当前修改，是否继续？',
+        okText: '放弃修改并离开',
+        okButtonProps: { danger: true },
+        cancelText: '继续编辑',
+        onOk: () => {
+          navigationConfirmOpenRef.current = false;
+          unblock();
+          transition.retry();
+        },
+        onCancel: () => {
+          navigationConfirmOpenRef.current = false;
+        },
+      });
+    });
+    return unblock;
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     if (!layout) return;
@@ -376,8 +451,7 @@ const DatacenterLayoutPage: React.FC = () => {
       const append = cabinets
         .filter((c) => !known2.has(c.id))
         .map((c) => {
-          const row = (c as any).row as number | undefined;
-          const column = (c as any).column as number | undefined;
+          const { row, column } = c;
           const x = typeof column === 'number' ? column * 1.2 : 0;
           const y = typeof row === 'number' ? row * 1.4 : 0;
           return { cabinetId: c.id, x, y, rotation: 0 };
@@ -470,8 +544,8 @@ const DatacenterLayoutPage: React.FC = () => {
   }, [selectedDc]);
 
   useEffect(() => {
-    if (!layout && selectedDc) ensureLayout();
-  }, [layout, selectedDc, ensureLayout]);
+    if (!loading && !loadError && !layout && selectedDc) ensureLayout();
+  }, [loadError, loading, layout, selectedDc, ensureLayout]);
 
   const pushHistory = useCallback((before: IDC.DatacenterLayout) => {
     const ref = historyRef.current;
@@ -549,7 +623,7 @@ const DatacenterLayoutPage: React.FC = () => {
     selection.facilities.length;
 
   const isLayerLocked = useCallback(
-    (type: Selected['type']) => {
+    (type: NonNullable<Selected>['type']) => {
       if (type === 'cabinet') return layers.lockCabinets;
       if (type === 'zone') return layers.lockZones;
       return layers.lockFacilities;
@@ -2005,7 +2079,9 @@ const DatacenterLayoutPage: React.FC = () => {
         facilities: layout.facilities,
       });
       if (res.success && res.data) {
+        savedFingerprintRef.current = getLayoutContentFingerprint(res.data);
         setLayout(res.data);
+        setIsDirty(false);
         message.success('保存成功');
       } else {
         message.error('保存失败');
@@ -2129,6 +2205,7 @@ const DatacenterLayoutPage: React.FC = () => {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableKeyboardTarget(e.target)) return;
       const key = e.key.toLowerCase();
       const mod = e.metaKey || e.ctrlKey;
 
@@ -2261,7 +2338,14 @@ const DatacenterLayoutPage: React.FC = () => {
   return (
     <PageContainer
       header={{
-        title: '机房布局编辑器',
+        title: (
+          <Space>
+            机房布局编辑器
+            {isDirty && (
+              <Typography.Text type="warning">未保存</Typography.Text>
+            )}
+          </Space>
+        ),
         subTitle: infoText,
       }}
     >
@@ -2272,7 +2356,20 @@ const DatacenterLayoutPage: React.FC = () => {
               <Typography.Text type="secondary">数据中心</Typography.Text>
               <Select
                 value={selectedDc}
-                onChange={(v) => setSelectedDc(v)}
+                onChange={(value) => {
+                  if (!isDirty) {
+                    setSelectedDc(value);
+                    return;
+                  }
+                  Modal.confirm({
+                    title: '切换数据中心？',
+                    content: '当前布局尚未保存，切换后修改将丢失。',
+                    okText: '放弃修改并切换',
+                    okButtonProps: { danger: true },
+                    cancelText: '取消',
+                    onOk: () => setSelectedDc(value),
+                  });
+                }}
                 options={datacenters.map((d) => ({
                   value: d.id,
                   label: d.name,
@@ -2286,14 +2383,46 @@ const DatacenterLayoutPage: React.FC = () => {
                   type="primary"
                   onClick={save}
                   loading={saving}
+                  disabled={!isDirty}
                 >
                   保存
                 </Button>
-                <Button onClick={() => selectedDc && load(selectedDc)}>
+                <Button
+                  onClick={() => {
+                    if (!selectedDc) return;
+                    if (!isDirty) {
+                      load(selectedDc);
+                      return;
+                    }
+                    Modal.confirm({
+                      title: '重新加载布局？',
+                      content: '当前未保存修改将被服务端版本覆盖。',
+                      okText: '放弃修改并刷新',
+                      okButtonProps: { danger: true },
+                      cancelText: '取消',
+                      onOk: () => load(selectedDc),
+                    });
+                  }}
+                >
                   刷新
                 </Button>
                 <Button onClick={go3D}>打开3D</Button>
               </Space>
+              {loadError && (
+                <Alert
+                  type="error"
+                  showIcon
+                  message={loadError}
+                  action={
+                    <Button
+                      size="small"
+                      onClick={() => selectedDc && load(selectedDc)}
+                    >
+                      重试
+                    </Button>
+                  }
+                />
+              )}
             </Space>
           </Card>
 

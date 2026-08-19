@@ -1,6 +1,9 @@
 import { Area, Line } from '@ant-design/charts';
 import { PageContainer } from '@ant-design/pro-components';
+import { history, useSearchParams } from '@umijs/max';
 import {
+  Alert,
+  Button,
   Card,
   Col,
   message,
@@ -35,6 +38,8 @@ import {
 import styles from './index.less';
 
 const Environment: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const requestedMetric = searchParams.get('metric');
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<any>(null);
   const [cabinetEnvs, setCabinetEnvs] = useState<IDC.CabinetEnvironment[]>([]);
@@ -55,6 +60,18 @@ const Environment: React.FC = () => {
       fetchPueTrend(selectedDc);
     }
   }, [selectedDc]);
+
+  useEffect(() => {
+    if (loading || !['pue', 'temperature'].includes(requestedMetric || '')) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(`environment-${requestedMetric}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, requestedMetric]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -292,6 +309,23 @@ const Environment: React.FC = () => {
 
   return (
     <PageContainer className={styles.environmentPage}>
+      {['pue', 'temperature'].includes(requestedMetric || '') && (
+        <Alert
+          type="info"
+          showIcon
+          className={styles.metricContext}
+          message={`已从工作台定位${requestedMetric === 'pue' ? ' PUE' : '温度'}趋势`}
+          description="当前指标卡和趋势图已高亮，可切换时间范围或数据中心继续分析。"
+          action={
+            <Button
+              size="small"
+              onClick={() => history.push('/monitor/environment')}
+            >
+              清除定位
+            </Button>
+          }
+        />
+      )}
       {/* 概览统计卡片 */}
       <Row gutter={16} className={styles.statsRow}>
         <Col xs={24} sm={12} lg={6}>
@@ -399,8 +433,9 @@ const Environment: React.FC = () => {
 
       {/* 温度趋势图 */}
       <Card
+        id="environment-temperature"
         title="温度趋势"
-        className={styles.chartCard}
+        className={`${styles.chartCard} ${requestedMetric === 'temperature' ? styles.focusedCard : ''}`}
         extra={
           <Radio.Group
             value={tempHours}
@@ -424,8 +459,9 @@ const Environment: React.FC = () => {
 
       {/* PUE趋势图 */}
       <Card
+        id="environment-pue"
         title="PUE趋势 (近30天)"
-        className={styles.chartCard}
+        className={`${styles.chartCard} ${requestedMetric === 'pue' ? styles.focusedCard : ''}`}
         extra={
           <Select
             value={selectedDc}

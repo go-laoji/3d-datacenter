@@ -1,4 +1,4 @@
-import { useIntl } from '@umijs/max';
+import { getIntl } from '@umijs/max';
 import { Button, message, notification } from 'antd';
 import defaultSettings from '../config/defaultSettings';
 import { initSessionSync } from './utils/session';
@@ -26,7 +26,7 @@ const clearCache = () => {
 if (pwa) {
   // Notify user if offline now
   window.addEventListener('sw.offline', () => {
-    message.warning(useIntl().formatMessage({ id: 'app.pwa.offline' }));
+    message.warning(getIntl().formatMessage({ id: 'app.pwa.offline' }));
   });
 
   // Pop up a prompt on the page asking the user if they want to use the latest version
@@ -65,12 +65,12 @@ if (pwa) {
           reloadSW();
         }}
       >
-        {useIntl().formatMessage({ id: 'app.pwa.serviceworker.updated.ok' })}
+        {getIntl().formatMessage({ id: 'app.pwa.serviceworker.updated.ok' })}
       </Button>
     );
     notification.open({
-      message: useIntl().formatMessage({ id: 'app.pwa.serviceworker.updated' }),
-      description: useIntl().formatMessage({
+      message: getIntl().formatMessage({ id: 'app.pwa.serviceworker.updated' }),
+      description: getIntl().formatMessage({
         id: 'app.pwa.serviceworker.updated.hint',
       }),
       btn,

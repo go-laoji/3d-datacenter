@@ -464,7 +464,7 @@ export default {
         deviceTemplates[index] = {
             ...deviceTemplates[index],
             ...body,
-            ...(portGroups ? { portGroups } : {}),
+            portGroups: portGroups ?? deviceTemplates[index].portGroups,
             updatedAt: new Date().toISOString(),
         };
 

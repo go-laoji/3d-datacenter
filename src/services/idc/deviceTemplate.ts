@@ -50,14 +50,7 @@ export async function deleteDeviceTemplate(id: string) {
 
 /** 获取所有设备模板（下拉选择用） */
 export async function getAllDeviceTemplates(category?: string) {
-    return request<IDC.ApiResponse<{
-        id: string;
-        name: string;
-        brand: string;
-        model: string;
-        category: string;
-        uHeight: number;
-    }[]>>('/api/idc/device-templates/all', {
+    return request<IDC.ApiResponse<IDC.DeviceTemplate[]>>('/api/idc/device-templates/all', {
         method: 'GET',
         params: { category },
     });

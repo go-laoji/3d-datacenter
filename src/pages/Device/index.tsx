@@ -27,6 +27,7 @@ import {
   Edit3,
   Eye,
   Network,
+  PackageMinus,
   Plus,
   Server,
   Settings,
@@ -46,6 +47,7 @@ import {
   validateDeviceMount,
 } from '@/services/idc/device';
 import { getAllDeviceTemplates } from '@/services/idc/deviceTemplate';
+import DeviceUnmountModal from './components/DeviceUnmountModal';
 
 const statusConfig: Record<
   string,
@@ -75,7 +77,15 @@ const USlotSelector: React.FC<{
   onSelect: (startU: number) => void;
   uUsage?: { u: number; occupied: boolean; deviceName?: string }[];
   loading?: boolean;
-}> = ({ cabinetId, uHeight, deviceUHeight, selectedStartU, onSelect }) => {
+}> = ({
+  cabinetId,
+  uHeight,
+  deviceUHeight,
+  selectedStartU,
+  onSelect,
+  uUsage,
+  loading,
+}) => {
   const [innerUsage, setInnerUsage] = useState<
     { u: number; occupied: boolean; deviceName?: string }[]
   >([]);
@@ -93,10 +103,10 @@ const USlotSelector: React.FC<{
             // API返回的是对象 { uSlots: [...] }，需要提取并转换
             const slots = res.data.uSlots || [];
             setInnerUsage(
-              slots.map((s: any) => ({
+              slots.map((s) => ({
                 u: s.u,
                 occupied: !!s.deviceId,
-                deviceName: s.deviceName,
+                deviceName: s.deviceName ?? undefined,
               })),
             );
           }
@@ -164,7 +174,10 @@ const USlotSelector: React.FC<{
                     : '不可用'
               }
             >
-              <div
+              <button
+                type="button"
+                disabled={!canStart}
+                aria-label={`U${u}${isOccupied ? `，已被 ${slot.deviceName || '设备'} 占用` : canStart ? '，可作为起始位' : '，不可作为起始位'}`}
                 onClick={() => canStart && onSelect(u)}
                 style={{
                   width: 32,
@@ -186,10 +199,11 @@ const USlotSelector: React.FC<{
                     ? '2px solid #1890ff'
                     : '1px solid #d9d9d9',
                   transition: 'all 0.2s',
+                  padding: 0,
                 }}
               >
                 {u}
-              </div>
+              </button>
             </Tooltip>
           );
         })}
@@ -215,8 +229,8 @@ const DevicePage: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   const [currentRow, setCurrentRow] = useState<IDC.Device>();
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [cabinets, setCabinets] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<IDC.DeviceTemplate[]>([]);
+  const [cabinets, setCabinets] = useState<IDC.Cabinet[]>([]);
 
   // 上架表单状态
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>();
@@ -233,6 +247,8 @@ const DevicePage: React.FC = () => {
   // 端口详情视图状态
   const [portViewOpen, setPortViewOpen] = useState(false);
   const [portViewDevice, setPortViewDevice] = useState<IDC.Device | null>(null);
+  const [unmountTarget, setUnmountTarget] = useState<IDC.Device>();
+  const [unmounting, setUnmounting] = useState(false);
 
   useEffect(() => {
     getAllDeviceTemplates().then((res) => {
@@ -263,10 +279,10 @@ const DevicePage: React.FC = () => {
         if (res.success && res.data) {
           const slots = res.data.uSlots || [];
           setCabinetSlots(
-            slots.map((s: any) => ({
+            slots.map((s) => ({
               u: s.u,
               occupied: !!s.deviceId,
-              deviceName: s.deviceName,
+              deviceName: s.deviceName ?? undefined,
             })),
           );
         } else {
@@ -293,7 +309,7 @@ const DevicePage: React.FC = () => {
 
   const powerPortCount = useMemo(() => {
     return (
-      selectedTemplate?.portGroups?.reduce((sum: number, pg: any) => {
+      selectedTemplate?.portGroups?.reduce((sum, pg) => {
         return pg.portType === 'Power' ? sum + (pg.count || 0) : sum;
       }, 0) || 0
     );
@@ -301,7 +317,7 @@ const DevicePage: React.FC = () => {
 
   const totalPortCount = useMemo(() => {
     return (
-      selectedTemplate?.portGroups?.reduce((sum: number, pg: any) => {
+      selectedTemplate?.portGroups?.reduce((sum, pg) => {
         return sum + (pg.count || 0);
       }, 0) || 0
     );
@@ -357,15 +373,11 @@ const DevicePage: React.FC = () => {
 
   const cabinetOptions = useMemo(() => {
     const deviceUHeight = selectedTemplate?.uHeight || 1;
-    const requiredPower = deviceMaxPower || 0;
     return [...cabinets]
       .map((c) => {
         const availableU = (c.uHeight || 42) - (c.usedU || 0);
         const headroom = (c.maxPower || 0) - (c.currentPower || 0);
         const canFitU = availableU >= deviceUHeight;
-        const canFitPower = c.maxPower
-          ? c.currentPower + requiredPower <= c.maxPower
-          : true;
         return {
           value: c.id,
           sortScore:
@@ -377,7 +389,7 @@ const DevicePage: React.FC = () => {
       })
       .sort((a, b) => b.sortScore - a.sortScore)
       .map(({ value, label }) => ({ value, label }));
-  }, [cabinets, selectedTemplate, deviceMaxPower]);
+  }, [cabinets, selectedTemplate]);
 
   const validationSummary = useMemo(() => {
     if (!selectedTemplate || !selectedCabinet) return null;
@@ -633,29 +645,22 @@ const DevicePage: React.FC = () => {
         >
           编辑
         </Button>,
-        <Popconfirm
+        <Tooltip
           key="unmount"
-          title="确定要下架这个设备吗？"
-          description="下架后设备的连接信息将被释放，历史记录会保留。"
-          onConfirm={async () => {
-            const res = await unmountDevice(record.id);
-            if (res.success) {
-              message.success('设备已下架');
-              actionRef.current?.reload();
-            }
-          }}
-          disabled={record.isMounted === false}
+          title={
+            record.isMounted === false ? '设备已下架' : '下架并保留资产记录'
+          }
         >
           <Button
             type="link"
             size="small"
-            danger
-            icon={<Trash2 size={14} />}
+            icon={<PackageMinus size={14} />}
             disabled={record.isMounted === false}
+            onClick={() => setUnmountTarget(record)}
           >
             下架
           </Button>
-        </Popconfirm>,
+        </Tooltip>,
         <Popconfirm
           key="delete"
           title="确定要删除这个设备吗？"
@@ -1061,6 +1066,29 @@ const DevicePage: React.FC = () => {
         onClose={() => {
           setPortViewOpen(false);
           setPortViewDevice(null);
+        }}
+      />
+
+      <DeviceUnmountModal
+        device={unmountTarget}
+        confirmLoading={unmounting}
+        onCancel={() => setUnmountTarget(undefined)}
+        onConfirm={async (confirmDependencies) => {
+          if (!unmountTarget) return;
+          setUnmounting(true);
+          try {
+            const response = await unmountDevice(
+              unmountTarget.id,
+              confirmDependencies,
+            );
+            if (response.success) {
+              message.success('设备已下架，资产记录和历史信息已保留');
+              setUnmountTarget(undefined);
+              actionRef.current?.reload();
+            }
+          } finally {
+            setUnmounting(false);
+          }
         }}
       />
     </PageContainer>

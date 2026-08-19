@@ -84,9 +84,17 @@ export async function getDeviceStats() {
 }
 
 /** 设备下架（保留数据） */
-export async function unmountDevice(id: string) {
+export async function getDeviceUnmountImpact(id: string) {
+    return request<IDC.ApiResponse<IDC.DeviceUnmountImpact>>(
+        `/api/idc/devices/${id}/unmount-impact`,
+        { method: 'GET' },
+    );
+}
+
+export async function unmountDevice(id: string, confirmDependencies = false) {
     return request<IDC.ApiResponse>(`/api/idc/devices/${id}/unmount`, {
         method: 'POST',
+        data: { confirmDependencies },
     });
 }
 

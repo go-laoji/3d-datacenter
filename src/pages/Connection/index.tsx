@@ -34,6 +34,12 @@ import {
 } from '@/services/idc/connection';
 import { getDevices } from '@/services/idc/device';
 import { getPortsByDevice } from '@/services/idc/port';
+import {
+  getPortAvailability,
+  getPortDisplayName,
+  isPortAvailable,
+  portAvailabilityText,
+} from './portSelection';
 
 // 端口选择器组件
 const PortSelector: React.FC<{
@@ -43,30 +49,39 @@ const PortSelector: React.FC<{
   label: string;
   excludePortId?: string; // 排除已选端口
 }> = ({ deviceId, value, onChange, label, excludePortId }) => {
-  const [ports, setPorts] = useState<any[]>([]);
+  const [ports, setPorts] = useState<IDC.Port[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (deviceId) {
       setLoading(true);
       getPortsByDevice(deviceId)
         .then((res) => {
-          if (res.success) {
+          if (!cancelled && res.success) {
             setPorts(res.data || []);
           }
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     } else {
       setPorts([]);
+      setLoading(false);
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [deviceId]);
 
   // 可用端口（未占用 且 非已排除端口）
   const availablePorts = useMemo(() => {
-    return ports.filter(
-      (p) => p.status !== 'connected' && p.id !== excludePortId,
-    );
+    return ports.filter((port) => isPortAvailable(port, excludePortId));
   }, [ports, excludePortId]);
+
+  const selectedPort = ports.find((port) => port.id === value);
 
   if (!deviceId) {
     return (
@@ -102,13 +117,18 @@ const PortSelector: React.FC<{
           >
             {ports.map((port) => {
               const isSelected = value === port.id;
-              const isOccupied = port.status === 'connected';
-              const isExcluded = port.id === excludePortId;
-              const canSelect = !isOccupied && !isExcluded;
+              const availability = getPortAvailability(port, excludePortId);
+              const canSelect = availability === 'available';
+              const isUnavailable = !canSelect;
+              const displayName = getPortDisplayName(port);
 
               return (
-                <div
+                <button
                   key={port.id}
+                  type="button"
+                  disabled={!canSelect}
+                  aria-pressed={isSelected}
+                  aria-label={`${displayName}，${portAvailabilityText[availability]}`}
                   onClick={() => canSelect && onChange?.(port.id)}
                   style={{
                     padding: '6px 12px',
@@ -117,34 +137,45 @@ const PortSelector: React.FC<{
                     cursor: canSelect ? 'pointer' : 'not-allowed',
                     backgroundColor: isSelected
                       ? '#1890ff'
-                      : isOccupied
+                      : isUnavailable
                         ? '#fff1f0'
                         : '#f5f5f5',
-                    color: isSelected ? '#fff' : isOccupied ? '#999' : '#333',
+                    color: isSelected
+                      ? '#fff'
+                      : isUnavailable
+                        ? '#999'
+                        : '#333',
                     border: isSelected
                       ? '2px solid #1890ff'
                       : '1px solid #d9d9d9',
-                    opacity: isExcluded ? 0.5 : 1,
+                    opacity: availability === 'excluded' ? 0.5 : 1,
                     transition: 'all 0.2s',
+                    textAlign: 'left',
                   }}
-                  title={isOccupied ? '端口已被占用' : port.name}
+                  title={
+                    canSelect ? displayName : portAvailabilityText[availability]
+                  }
                 >
-                  <div style={{ fontWeight: 500 }}>{port.name}</div>
+                  <div style={{ fontWeight: 500 }}>{displayName}</div>
                   <div
                     style={{
                       fontSize: 10,
                       color: isSelected ? '#fff' : '#8c8c8c',
                     }}
                   >
-                    {port.type} | {port.speed}
+                    {port.portType} | {port.speed}
+                    {isUnavailable
+                      ? ` · ${portAvailabilityText[availability]}`
+                      : ''}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
           {value && (
             <div style={{ marginTop: 8, color: '#52c41a', fontSize: 12 }}>
-              ✓ 已选择: {ports.find((p) => p.id === value)?.name}
+              ✓ 已选择:{' '}
+              {selectedPort ? getPortDisplayName(selectedPort) : value}
             </div>
           )}
         </div>

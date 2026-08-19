@@ -11,12 +11,12 @@ import {
 import { getEnvironmentOverview } from '@/services/idc/environment';
 
 export interface EnergyOverview {
-  avgTemperature: number;
-  avgHumidity: number;
-  maxTemperature: number;
+  avgTemperature: number | null;
+  avgHumidity: number | null;
+  maxTemperature: number | null;
   maxTemperatureCabinet: string;
-  totalPower: number;
-  avgPue: number;
+  totalPower: number | null;
+  avgPue: number | null;
 }
 
 export interface Loadable<T> {

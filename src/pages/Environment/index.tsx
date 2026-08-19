@@ -1,317 +1,126 @@
-import { Area, Line } from '@ant-design/charts';
 import { PageContainer } from '@ant-design/pro-components';
 import { history, useSearchParams } from '@umijs/max';
-import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  message,
-  Progress,
-  Radio,
-  Row,
-  Select,
-  Space,
-  Spin,
-  Table,
-  Tag,
-  Tooltip,
-} from 'antd';
-import {
-  Activity,
-  AlertTriangle,
-  Droplets,
-  Thermometer,
-  TrendingDown,
-  TrendingUp,
-  Zap,
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Alert, message, Spin } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getAllDatacenters } from '@/services/idc/datacenter';
 import {
+  type CabinetEnvironmentView,
+  type EnvironmentOverview,
+  type EnvironmentQuery,
+  type EnvironmentSensorView,
+  type EnvironmentThresholds,
   getCabinetEnvironments,
-  getEnergyStats,
+  getCabinetSensors,
   getEnvironmentOverview,
+  getEnvironmentThresholds,
   getPueTrend,
   getTemperatureTrend,
+  type PuePoint,
+  type TemperaturePoint,
 } from '@/services/idc/environment';
+import { EnvironmentCabinetTable } from './components/EnvironmentCabinetTable';
+import { EnvironmentDetailDrawer } from './components/EnvironmentDetailDrawer';
+import { EnvironmentMetricStrip } from './components/EnvironmentMetricStrip';
+import { EnvironmentTrendPanel } from './components/EnvironmentTrendPanel';
 import styles from './index.less';
 
-const Environment: React.FC = () => {
+type DatacenterOption = { id: string; name: string; code: string };
+
+const Environment = () => {
   const [searchParams] = useSearchParams();
-  const requestedMetric = searchParams.get('metric');
-  const requestedDatacenterId = searchParams.get('datacenterId');
+  const metric = searchParams.get('metric') || 'temperature';
+  const datacenterId = searchParams.get('datacenterId') || undefined;
+  const range = (searchParams.get('range') || '24h') as NonNullable<
+    EnvironmentQuery['range']
+  >;
+  const granularity = (searchParams.get('granularity') || '1h') as NonNullable<
+    EnvironmentQuery['granularity']
+  >;
+  const cabinetId = searchParams.get('cabinetId') || undefined;
+  const selectedTime = searchParams.get('time') || undefined;
   const [loading, setLoading] = useState(true);
-  const [overview, setOverview] = useState<any>(null);
-  const [cabinetEnvs, setCabinetEnvs] = useState<IDC.CabinetEnvironment[]>([]);
-  const [tempTrend, setTempTrend] = useState<IDC.TemperatureTrend[]>([]);
-  const [pueTrend, setPueTrend] = useState<IDC.PueData[]>([]);
-  const [energyStats, setEnergyStats] = useState<IDC.EnergyStats | null>(null);
-  const [datacenters, setDatacenters] = useState<any[]>([]);
-  const [selectedDc, setSelectedDc] = useState<string>('');
-  const [tempHours, setTempHours] = useState<number>(24);
-  const [selectedCabinetDc, setSelectedCabinetDc] = useState<string>('');
+  const [overview, setOverview] = useState<EnvironmentOverview | null>(null);
+  const [cabinets, setCabinets] = useState<CabinetEnvironmentView[]>([]);
+  const [temperature, setTemperature] = useState<TemperaturePoint[]>([]);
+  const [pue, setPue] = useState<PuePoint[]>([]);
+  const [thresholds, setThresholds] = useState<EnvironmentThresholds>();
+  const [datacenters, setDatacenters] = useState<DatacenterOption[]>([]);
+  const [sensors, setSensors] = useState<EnvironmentSensorView[]>([]);
+  const [sensorLoading, setSensorLoading] = useState(false);
+
+  const selectedCabinet = useMemo(
+    () => cabinets.find((item) => item.cabinetId === cabinetId),
+    [cabinetId, cabinets],
+  );
+
+  const updateContext = useCallback(
+    (updates: Record<string, string | undefined>) => {
+      const next = new URLSearchParams(window.location.search);
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      });
+      history.replace(`/monitor/environment?${next.toString()}`);
+    },
+    [],
+  );
 
   useEffect(() => {
-    fetchData();
+    getAllDatacenters().then((response) => {
+      if (response.success && response.data) setDatacenters(response.data);
+    });
   }, []);
 
   useEffect(() => {
-    if (selectedDc) {
-      fetchPueTrend(selectedDc);
-    }
-  }, [selectedDc]);
+    let active = true;
+    setLoading(true);
+    const query = { datacenterId, range, granularity };
+    Promise.all([
+      getEnvironmentOverview(datacenterId),
+      getCabinetEnvironments(datacenterId),
+      getTemperatureTrend(query),
+      getPueTrend(query),
+      getEnvironmentThresholds(),
+    ])
+      .then(
+        ([
+          overviewResult,
+          cabinetResult,
+          temperatureResult,
+          pueResult,
+          thresholdResult,
+        ]) => {
+          if (!active) return;
+          setOverview(overviewResult.data || null);
+          setCabinets(cabinetResult.data || []);
+          setTemperature(temperatureResult.data || []);
+          setPue(pueResult.data || []);
+          setThresholds(thresholdResult.data);
+        },
+      )
+      .catch(() => message.error('环境数据加载失败，请稍后重试'))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [datacenterId, granularity, range]);
 
   useEffect(() => {
-    if (!requestedDatacenterId || datacenters.length === 0) return;
-    const requestedDatacenter = datacenters.find(
-      (datacenter) => datacenter.id === requestedDatacenterId,
-    );
-    if (!requestedDatacenter) return;
-    setSelectedDc(requestedDatacenter.id);
-    setSelectedCabinetDc(requestedDatacenter.name);
-  }, [datacenters, requestedDatacenterId]);
-
-  useEffect(() => {
-    if (loading || !['pue', 'temperature'].includes(requestedMetric || '')) {
+    if (!cabinetId) {
+      setSensors([]);
       return;
     }
-    const frame = window.requestAnimationFrame(() => {
-      document
-        .getElementById(`environment-${requestedMetric}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [loading, requestedMetric]);
+    setSensorLoading(true);
+    getCabinetSensors(cabinetId)
+      .then((response) => setSensors(response.data || []))
+      .catch(() => message.error('传感器数据加载失败'))
+      .finally(() => setSensorLoading(false));
+  }, [cabinetId]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [overviewRes, cabinetRes, tempRes, pueRes, energyRes, dcRes] =
-        await Promise.all([
-          getEnvironmentOverview(),
-          getCabinetEnvironments(),
-          getTemperatureTrend(tempHours),
-          getPueTrend(30),
-          getEnergyStats(),
-          getAllDatacenters(),
-        ]);
-
-      if (overviewRes.success && overviewRes.data) {
-        setOverview(overviewRes.data);
-      }
-      if (cabinetRes.success && cabinetRes.data) {
-        setCabinetEnvs(cabinetRes.data);
-      }
-      if (tempRes.success && tempRes.data) {
-        setTempTrend(tempRes.data);
-      }
-      if (pueRes.success && pueRes.data) {
-        setPueTrend(pueRes.data);
-      }
-      if (energyRes.success && energyRes.data) {
-        setEnergyStats(energyRes.data);
-      }
-      if (dcRes.success && dcRes.data) {
-        setDatacenters(dcRes.data);
-        if (dcRes.data.length > 0) {
-          setSelectedDc(dcRes.data[0].id);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch environment data:', error);
-      message.error('获取环境数据失败，请稍后重试');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPueTrend = async (datacenterId: string) => {
-    try {
-      const res = await getPueTrend(30, datacenterId);
-      if (res.success && res.data) {
-        setPueTrend(res.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch PUE trend:', error);
-      message.error('获取PUE趋势数据失败');
-    }
-  };
-
-  const getStatusTag = (status: string) => {
-    const config: Record<string, { color: string; text: string }> = {
-      normal: { color: 'success', text: '正常' },
-      warning: { color: 'warning', text: '警告' },
-      critical: { color: 'error', text: '严重' },
-    };
-    const cfg = config[status] || { color: 'default', text: status };
-    return <Tag color={cfg.color}>{cfg.text}</Tag>;
-  };
-
-  const getTemperatureProgress = (temp: number) => {
-    // 温度范围：15-35℃，正常范围20-26℃
-    const percent = Math.min(100, Math.max(0, ((temp - 15) / 20) * 100));
-    let status: 'success' | 'normal' | 'exception' = 'success';
-    if (temp > 28) status = 'exception';
-    else if (temp > 26) status = 'normal';
-
-    return (
-      <div className={styles.tempBar}>
-        <span className={styles.tempValue}>{temp}℃</span>
-        <Progress
-          className={styles.tempProgress}
-          percent={percent}
-          status={status}
-          showInfo={false}
-          size="small"
-        />
-      </div>
-    );
-  };
-
-  const columns = [
-    {
-      title: '机柜名称',
-      dataIndex: 'cabinetName',
-      key: 'cabinetName',
-    },
-    {
-      title: '数据中心',
-      dataIndex: 'datacenterName',
-      key: 'datacenterName',
-    },
-    {
-      title: '平均温度',
-      dataIndex: 'avgTemperature',
-      key: 'avgTemperature',
-      sorter: (a: IDC.CabinetEnvironment, b: IDC.CabinetEnvironment) =>
-        a.avgTemperature - b.avgTemperature,
-      render: (temp: number) => getTemperatureProgress(temp),
-    },
-    {
-      title: '最高温度',
-      dataIndex: 'maxTemperature',
-      key: 'maxTemperature',
-      sorter: (a: IDC.CabinetEnvironment, b: IDC.CabinetEnvironment) =>
-        a.maxTemperature - b.maxTemperature,
-      render: (temp: number) => (
-        <span
-          style={{
-            color: temp > 28 ? '#f5222d' : temp > 26 ? '#faad14' : '#52c41a',
-          }}
-        >
-          {temp}℃
-        </span>
-      ),
-    },
-    {
-      title: '平均湿度',
-      dataIndex: 'avgHumidity',
-      key: 'avgHumidity',
-      sorter: (a: IDC.CabinetEnvironment, b: IDC.CabinetEnvironment) =>
-        a.avgHumidity - b.avgHumidity,
-      render: (humidity: number) => `${humidity}%`,
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      filters: [
-        { text: '正常', value: 'normal' },
-        { text: '警告', value: 'warning' },
-        { text: '严重', value: 'critical' },
-      ],
-      onFilter: (value: any, record: IDC.CabinetEnvironment) =>
-        record.status === value,
-      render: (status: string) => getStatusTag(status),
-    },
-  ];
-
-  // 温度趋势图配置
-  const tempChartData = tempTrend.flatMap((item) => [
-    {
-      time: new Date(item.timestamp).toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      value: item.avgTemperature,
-      type: '平均温度',
-    },
-    {
-      time: new Date(item.timestamp).toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      value: item.maxTemperature,
-      type: '最高温度',
-    },
-    {
-      time: new Date(item.timestamp).toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      value: item.minTemperature,
-      type: '最低温度',
-    },
-  ]);
-
-  const tempChartConfig = {
-    data: tempChartData,
-    xField: 'time',
-    yField: 'value',
-    seriesField: 'type',
-    smooth: true,
-    height: 300,
-    yAxis: {
-      title: { text: '温度 (℃)' },
-    },
-    legend: {
-      position: 'top' as const,
-    },
-    color: ['#1890ff', '#f5222d', '#52c41a'],
-    areaStyle: () => ({
-      fillOpacity: 0.15,
-    }),
-  };
-
-  // PUE趋势图配置
-  const pueChartConfig = {
-    data: pueTrend,
-    xField: 'date',
-    yField: 'pue',
-    smooth: true,
-    height: 300,
-    yAxis: {
-      min: 1,
-      max: 2,
-      title: { text: 'PUE' },
-    },
-    point: {
-      size: 3,
-      shape: 'circle',
-    },
-    annotations: [
-      {
-        type: 'line',
-        start: ['min', 1.4],
-        end: ['max', 1.4],
-        style: {
-          stroke: '#52c41a',
-          lineDash: [4, 4],
-        },
-        text: {
-          content: '优秀线 (PUE=1.4)',
-          position: 'start',
-          style: { fill: '#52c41a', fontSize: 10 },
-        },
-      },
-    ],
-  };
-
-  if (loading) {
+  if (loading && !overview) {
     return (
       <PageContainer>
-        <div style={{ textAlign: 'center', padding: '100px 0' }}>
+        <div className={styles.loading}>
           <Spin size="large" />
         </div>
       </PageContainer>
@@ -320,229 +129,53 @@ const Environment: React.FC = () => {
 
   return (
     <PageContainer className={styles.environmentPage}>
-      {(['pue', 'temperature'].includes(requestedMetric || '') ||
-        requestedDatacenterId) && (
-        <Alert
-          type="info"
-          showIcon
-          className={styles.metricContext}
-          message={
-            requestedMetric
-              ? `已从工作台定位${requestedMetric === 'pue' ? ' PUE' : '温度'}趋势`
-              : `已恢复站点上下文 ${requestedDatacenterId}`
-          }
-          description={
-            requestedMetric
-              ? '当前指标卡和趋势图已高亮，可切换时间范围或数据中心继续分析。'
-              : 'PUE 趋势和机柜环境列表已同步切换到目标站点。'
-          }
-          action={
-            <Button
-              size="small"
-              onClick={() => history.push('/monitor/environment')}
-            >
-              清除定位
-            </Button>
-          }
-        />
-      )}
-      {/* 概览统计卡片 */}
-      <Row gutter={16} className={styles.statsRow}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className={`${styles.overviewCard} ${styles.temperatureCard}`}>
-            <Thermometer className={styles.statusIcon} />
-            <div className={styles.cardValue}>
-              {overview?.avgTemperature || 0}℃
-            </div>
-            <div className={styles.cardLabel}>平均温度</div>
-            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
-              最高: {overview?.maxTemperature || 0}℃ (
-              {overview?.maxTemperatureCabinet || '-'})
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className={`${styles.overviewCard} ${styles.humidityCard}`}>
-            <Droplets className={styles.statusIcon} />
-            <div className={styles.cardValue}>
-              {overview?.avgHumidity || 0}%
-            </div>
-            <div className={styles.cardLabel}>平均湿度</div>
-            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
-              {overview?.normalCabinets || 0} 正常 /{' '}
-              {overview?.warningCabinets || 0} 警告 /{' '}
-              {overview?.criticalCabinets || 0} 严重
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className={`${styles.overviewCard} ${styles.powerCard}`}>
-            <Zap className={styles.statusIcon} />
-            <div className={styles.cardValue}>
-              {overview?.totalPower || 0} kW
-            </div>
-            <div className={styles.cardLabel}>总功率</div>
-            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
-              共 {overview?.totalCabinets || 0} 个机柜
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className={`${styles.overviewCard} ${styles.pueCard}`}>
-            <Activity className={styles.statusIcon} />
-            <div className={styles.cardValue}>{overview?.avgPue || 0}</div>
-            <div className={styles.cardLabel}>平均 PUE</div>
-            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
-              {overview?.avgPue <= 1.4
-                ? '优秀'
-                : overview?.avgPue <= 1.6
-                  ? '良好'
-                  : '待优化'}
-            </div>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 能耗统计 */}
-      {energyStats && (
-        <Card title="本月能耗统计" className={styles.chartCard}>
-          <Row gutter={16} className={styles.energyStats}>
-            <Col xs={12} sm={6}>
-              <div className={styles.statItem}>
-                <div className={styles.statValue}>
-                  {(energyStats.totalEnergy / 1000).toFixed(1)}
-                </div>
-                <div className={styles.statLabel}>总电量 (MWh)</div>
-              </div>
-            </Col>
-            <Col xs={12} sm={6}>
-              <div className={styles.statItem}>
-                <div className={styles.statValue}>
-                  ¥{(energyStats.totalCost / 10000).toFixed(2)}万
-                </div>
-                <div className={styles.statLabel}>电费成本</div>
-                <div
-                  className={`${styles.statCompare} ${energyStats.comparedLastMonth < 0 ? styles.negative : styles.positive}`}
-                >
-                  {energyStats.comparedLastMonth < 0 ? (
-                    <TrendingDown size={12} />
-                  ) : (
-                    <TrendingUp size={12} />
-                  )}{' '}
-                  {Math.abs(energyStats.comparedLastMonth)}% 较上月
-                </div>
-              </div>
-            </Col>
-            <Col xs={12} sm={6}>
-              <div className={styles.statItem}>
-                <div className={styles.statValue}>{energyStats.avgPue}</div>
-                <div className={styles.statLabel}>平均 PUE</div>
-              </div>
-            </Col>
-            <Col xs={12} sm={6}>
-              <div className={styles.statItem}>
-                <div className={styles.statValue}>
-                  {(energyStats.carbonEmission / 1000).toFixed(1)}
-                </div>
-                <div className={styles.statLabel}>碳排放 (吨)</div>
-              </div>
-            </Col>
-          </Row>
-        </Card>
-      )}
-
-      {/* 温度趋势图 */}
-      <Card
-        id="environment-temperature"
-        title="温度趋势"
-        className={`${styles.chartCard} ${requestedMetric === 'temperature' ? styles.focusedCard : ''}`}
-        extra={
-          <Radio.Group
-            value={tempHours}
-            onChange={(e) => {
-              setTempHours(e.target.value);
-              getTemperatureTrend(e.target.value).then((res) => {
-                if (res.success && res.data) setTempTrend(res.data);
-              });
-            }}
-            size="small"
-          >
-            <Radio.Button value={6}>6小时</Radio.Button>
-            <Radio.Button value={12}>12小时</Radio.Button>
-            <Radio.Button value={24}>24小时</Radio.Button>
-          </Radio.Group>
+      <Alert
+        className={styles.contextAlert}
+        type="info"
+        showIcon
+        message="环境指标与告警共用同一规则中心"
+        description={`阈值需持续 ${thresholds?.durationMinutes ?? '—'} 分钟后触发，回差 ${thresholds?.hysteresis ?? '—'}℃；缺失、延迟、估算和无效数据均与 0 明确区分。`}
+      />
+      <EnvironmentMetricStrip
+        overview={overview}
+        activeMetric={metric}
+        onMetricChange={(value) => updateContext({ metric: value })}
+      />
+      <EnvironmentTrendPanel
+        metric={metric}
+        range={range}
+        granularity={granularity}
+        temperature={temperature}
+        pue={pue}
+        thresholds={thresholds}
+        onRangeChange={(value) =>
+          updateContext({
+            range: value,
+            granularity: value === '24h' ? '1h' : granularity,
+          })
         }
-      >
-        {' '}
-        <Area {...tempChartConfig} />
-      </Card>
-
-      {/* PUE趋势图 */}
-      <Card
-        id="environment-pue"
-        title="PUE趋势 (近30天)"
-        className={`${styles.chartCard} ${requestedMetric === 'pue' ? styles.focusedCard : ''}`}
-        extra={
-          <Select
-            value={selectedDc}
-            onChange={setSelectedDc}
-            style={{ width: 200 }}
-            placeholder="选择数据中心"
-          >
-            {datacenters.map((dc) => (
-              <Select.Option key={dc.id} value={dc.id}>
-                {dc.name}
-              </Select.Option>
-            ))}
-          </Select>
+        onGranularityChange={(value) => updateContext({ granularity: value })}
+        onOpenAnomaly={(nextCabinetId, time) =>
+          updateContext({ cabinetId: nextCabinetId, time })
         }
-      >
-        <Line {...pueChartConfig} />
-      </Card>
-
-      {/* 机柜温度列表 */}
-      <Card
-        title="机柜环境监控"
-        className={styles.cabinetTable}
-        extra={
-          <Space>
-            <Select
-              placeholder="按数据中心筛选"
-              allowClear
-              style={{ width: 180 }}
-              value={selectedCabinetDc || undefined}
-              onChange={(v) => setSelectedCabinetDc(v || '')}
-              options={datacenters.map((dc) => ({
-                value: dc.name,
-                label: dc.name,
-              }))}
-            />
-            <Tooltip title="警告: 温度或湿度接近阈值">
-              <Tag color="warning" icon={<AlertTriangle size={12} />}>
-                {cabinetEnvs.filter((c) => c.status === 'warning').length} 警告
-              </Tag>
-            </Tooltip>
-            <Tooltip title="严重: 温度或湿度超过阈值">
-              <Tag color="error" icon={<AlertTriangle size={12} />}>
-                {cabinetEnvs.filter((c) => c.status === 'critical').length} 严重
-              </Tag>
-            </Tooltip>
-          </Space>
+      />
+      <EnvironmentCabinetTable
+        items={cabinets}
+        datacenters={datacenters}
+        datacenterId={datacenterId}
+        onDatacenterChange={(value) => updateContext({ datacenterId: value })}
+        onOpen={(item) =>
+          updateContext({ cabinetId: item.cabinetId, time: item.collectedAt })
         }
-      >
-        <Table
-          columns={columns}
-          dataSource={
-            selectedCabinetDc
-              ? cabinetEnvs.filter(
-                  (c) => c.datacenterName === selectedCabinetDc,
-                )
-              : cabinetEnvs
-          }
-          rowKey="cabinetId"
-          pagination={{ pageSize: 10, showSizeChanger: true }}
-        />
-      </Card>
+      />
+      <EnvironmentDetailDrawer
+        cabinet={selectedCabinet}
+        sensors={sensors}
+        thresholds={thresholds}
+        loading={sensorLoading}
+        selectedTime={selectedTime}
+        onClose={() => updateContext({ cabinetId: undefined, time: undefined })}
+      />
     </PageContainer>
   );
 };

@@ -327,11 +327,18 @@ const Datacenter3DPage: React.FC = () => {
       getCabinetEnvironments().then((res) => {
         if (res.success && res.data) {
           setCabinetTemperatures(
-            res.data.map((env) => ({
-              cabinetId: env.cabinetId,
-              temperature: env.avgTemperature,
-              status: env.status,
-            })),
+            res.data.flatMap((env) => {
+              if (env.avgTemperature === null || env.status === 'unavailable') {
+                return [];
+              }
+              return [
+                {
+                  cabinetId: env.cabinetId,
+                  temperature: env.avgTemperature,
+                  status: env.status,
+                },
+              ];
+            }),
           );
         }
       });

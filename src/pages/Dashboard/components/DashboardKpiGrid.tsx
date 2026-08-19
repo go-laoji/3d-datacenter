@@ -118,13 +118,13 @@ export function DashboardKpiGrid({
     {
       key: 'pue',
       title: '当前 PUE',
-      value: energy.data?.avgPue.toFixed(2) || '--',
+      value: energy.data?.avgPue?.toFixed(2) || '--',
       hint: '建议基线 ≤ 1.50',
       tone: !energy.data
         ? 'neutral'
-        : energy.data.avgPue > 1.8
+        : (energy.data.avgPue ?? 0) > 1.8
           ? 'critical'
-          : energy.data.avgPue > 1.5
+          : (energy.data.avgPue ?? 0) > 1.5
             ? 'warning'
             : 'normal',
       icon: <Gauge size={20} />,
@@ -136,12 +136,12 @@ export function DashboardKpiGrid({
     {
       key: 'hotspot',
       title: '最高温度',
-      value: energy.data?.maxTemperature.toFixed(1) || '--',
-      unit: energy.data ? '°C' : undefined,
+      value: energy.data?.maxTemperature?.toFixed(1) || '--',
+      unit: energy.data?.maxTemperature != null ? '°C' : undefined,
       hint: energy.data?.maxTemperatureCabinet || '暂无热点数据',
       tone: !energy.data
         ? 'neutral'
-        : energy.data.maxTemperature > 28
+        : (energy.data.maxTemperature ?? 0) > 28
           ? 'warning'
           : 'normal',
       icon: <Flame size={20} />,

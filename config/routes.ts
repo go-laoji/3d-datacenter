@@ -183,6 +183,11 @@ export default [
         name: 'notifications',
         component: './Notifications',
       },
+      {
+        path: '/operations/work-orders',
+        name: 'work-orders',
+        component: './WorkOrders',
+      },
     ],
   },
 

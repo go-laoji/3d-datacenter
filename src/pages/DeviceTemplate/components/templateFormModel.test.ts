@@ -1,7 +1,10 @@
 import {
+  createDefaultPortGroups,
   createTemplatePayload,
+  duplicatePortGroup,
   getEditablePortGroups,
   getTemplateFormInitialValues,
+  movePortGroup,
 } from './templateFormModel';
 
 const template: IDC.DeviceTemplate = {
@@ -75,5 +78,22 @@ describe('device template form model', () => {
     expect(payload.name).toBe('Access switch');
     expect(payload.portGroups[0].name).toBe('Uplink');
     expect(payload.specs).toEqual({ throughput: '1 Tbps' });
+  });
+
+  it('supports batch creation, duplication and ordering of port groups', () => {
+    const groups = createDefaultPortGroups(3);
+    expect(groups).toHaveLength(3);
+
+    const duplicated = duplicatePortGroup(
+      [{ ...groups[0], name: 'Uplink' }, groups[1]],
+      0,
+    );
+    expect(duplicated.map((group) => group.name)).toEqual([
+      'Uplink',
+      'Uplink - 副本',
+      '',
+    ]);
+
+    expect(movePortGroup(duplicated, 1, -1)[0].name).toBe('Uplink - 副本');
   });
 });

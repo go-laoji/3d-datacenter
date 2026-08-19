@@ -12,6 +12,35 @@ export const createDefaultPortGroup = (): EditablePortGroup => ({
   speed: '1G',
 });
 
+export const createDefaultPortGroups = (count: number) =>
+  Array.from({ length: Math.max(1, count) }, createDefaultPortGroup);
+
+export const duplicatePortGroup = (
+  portGroups: EditablePortGroup[],
+  index: number,
+) => {
+  const source = portGroups[index];
+  if (!source) return portGroups;
+  const clone = { ...source, name: `${source.name || '端口组'} - 副本` };
+  return [
+    ...portGroups.slice(0, index + 1),
+    clone,
+    ...portGroups.slice(index + 1),
+  ];
+};
+
+export const movePortGroup = (
+  portGroups: EditablePortGroup[],
+  index: number,
+  direction: -1 | 1,
+) => {
+  const target = index + direction;
+  if (target < 0 || target >= portGroups.length) return portGroups;
+  const next = [...portGroups];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+};
+
 export const getEditablePortGroups = (
   template?: IDC.DeviceTemplate,
 ): EditablePortGroup[] => {

@@ -1,7 +1,13 @@
-import { Button, Card, Input, InputNumber, Select, Space } from 'antd';
-import { Plus, Trash2 } from 'lucide-react';
+import { Button, Card, Input, InputNumber, Select, Space, Tag } from 'antd';
+import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import type { EditablePortGroup } from './templateFormModel';
-import { createDefaultPortGroup } from './templateFormModel';
+import {
+  createDefaultPortGroup,
+  createDefaultPortGroups,
+  duplicatePortGroup,
+  movePortGroup,
+} from './templateFormModel';
 
 const portTypeOptions: Array<{
   value: IDC.PortGroup['portType'];
@@ -39,6 +45,11 @@ const PortGroupEditor: React.FC<PortGroupEditorProps> = ({
   value,
   onChange,
 }) => {
+  const [batchCount, setBatchCount] = useState(2);
+  const totalPorts = useMemo(
+    () => value.reduce((total, portGroup) => total + portGroup.count, 0),
+    [value],
+  );
   const updatePortGroup = <Key extends keyof EditablePortGroup>(
     index: number,
     field: Key,
@@ -59,13 +70,33 @@ const PortGroupEditor: React.FC<PortGroupEditorProps> = ({
       size="small"
       style={{ marginBottom: 16 }}
       extra={
-        <Button
-          type="link"
-          icon={<Plus size={14} />}
-          onClick={() => onChange([...value, createDefaultPortGroup()])}
-        >
-          添加端口组
-        </Button>
+        <Space wrap>
+          <Tag>
+            {value.length} 组 / {totalPorts} 个端口
+          </Tag>
+          <InputNumber
+            aria-label="批量新增端口组数量"
+            min={1}
+            max={16}
+            value={batchCount}
+            onChange={(nextValue) => setBatchCount(nextValue ?? 1)}
+            style={{ width: 72 }}
+          />
+          <Button
+            onClick={() =>
+              onChange([...value, ...createDefaultPortGroups(batchCount)])
+            }
+          >
+            批量添加
+          </Button>
+          <Button
+            type="link"
+            icon={<Plus size={14} />}
+            onClick={() => onChange([...value, createDefaultPortGroup()])}
+          >
+            添加端口组
+          </Button>
+        </Space>
       }
     >
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
@@ -112,6 +143,26 @@ const PortGroupEditor: React.FC<PortGroupEditorProps> = ({
               onChange={(nextValue) =>
                 updatePortGroup(index, 'speed', nextValue)
               }
+            />
+            <Button
+              aria-label={`上移第 ${index + 1} 个端口组`}
+              type="text"
+              icon={<ArrowUp size={14} />}
+              disabled={index === 0}
+              onClick={() => onChange(movePortGroup(value, index, -1))}
+            />
+            <Button
+              aria-label={`下移第 ${index + 1} 个端口组`}
+              type="text"
+              icon={<ArrowDown size={14} />}
+              disabled={index === value.length - 1}
+              onClick={() => onChange(movePortGroup(value, index, 1))}
+            />
+            <Button
+              aria-label={`复制第 ${index + 1} 个端口组`}
+              type="text"
+              icon={<Copy size={14} />}
+              onClick={() => onChange(duplicatePortGroup(value, index))}
             />
             <Button
               aria-label={`删除第 ${index + 1} 个端口组`}

@@ -217,6 +217,11 @@ export default [
     component: './403',
   },
   {
+    path: '/mobile/ops',
+    layout: false,
+    component: './MobileOps',
+  },
+  {
     path: '/',
     redirect: '/dashboard',
   },

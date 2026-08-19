@@ -36,6 +36,31 @@ ol {
 }
 
 @media (max-width: 768px) {
+  .ant-pro-page-container-children-container {
+    padding-inline: 12px !important;
+  }
+
+  .ant-pro-page-container-warp-page-header {
+    padding-inline: 12px !important;
+  }
+
+  .ant-card-body {
+    padding: 14px;
+  }
+
+  .ant-modal {
+    max-width: calc(100vw - 24px);
+    margin: 12px auto;
+  }
+
+  .ant-drawer-content-wrapper {
+    max-width: 100vw;
+  }
+
+  .ant-btn:not(.ant-btn-link):not(.ant-btn-text) {
+    min-height: 36px;
+  }
+
   .ant-table {
     width: 100%;
     overflow-x: auto;
@@ -49,5 +74,12 @@ ol {
         }
       }
     }
+  }
+}
+
+@media (min-width: 2200px) {
+  .ant-pro-page-container-children-container {
+    max-width: 1960px;
+    margin-inline: auto;
   }
 }

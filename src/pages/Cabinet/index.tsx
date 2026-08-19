@@ -44,6 +44,7 @@ const CabinetPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const requestedCabinetId = searchParams.get('cabinetId');
   const requestedUsageRisk = searchParams.get('usageRisk');
+  const requestedDatacenterId = searchParams.get('datacenterId');
   const actionRef = useRef<ActionType>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -61,7 +62,7 @@ const CabinetPage: React.FC = () => {
 
   useEffect(() => {
     actionRef.current?.reload();
-  }, [requestedCabinetId, requestedUsageRisk]);
+  }, [requestedCabinetId, requestedDatacenterId, requestedUsageRisk]);
 
   useEffect(() => {
     getAllDatacenters().then((res) => {
@@ -264,7 +265,7 @@ const CabinetPage: React.FC = () => {
         subTitle: '管理数据中心机柜信息',
       }}
     >
-      {(requestedCabinetId || requestedUsageRisk) && (
+      {(requestedCabinetId || requestedUsageRisk || requestedDatacenterId) && (
         <Alert
           type="info"
           showIcon
@@ -272,7 +273,9 @@ const CabinetPage: React.FC = () => {
           message={
             requestedCabinetId
               ? `已定位机柜 ${requestedCabinetId}`
-              : '已筛选 U 位使用率达到 85% 的容量风险机柜'
+              : requestedUsageRisk
+                ? '已筛选 U 位使用率达到 85% 的容量风险机柜'
+                : `已恢复站点上下文 ${requestedDatacenterId}`
           }
           description="此定位来自工作台或设备联动，可继续查看 42U 使用详情与设备分布。"
           action={
@@ -293,7 +296,8 @@ const CabinetPage: React.FC = () => {
             id: requestedCabinetId || undefined,
             current: params.current,
             pageSize: params.pageSize,
-            datacenterId: params.datacenterId,
+            datacenterId:
+              params.datacenterId || requestedDatacenterId || undefined,
             name: params.name,
             status: params.status,
             code: params.code,

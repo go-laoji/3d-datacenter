@@ -250,6 +250,14 @@ const waitTime = (time: number = 100) => {
     });
 };
 
+const getDatacenterIdByCabinet = (cabinetId: string) => {
+    if (cabinetId.startsWith('cab-bj-')) return 'dc-001';
+    if (cabinetId.startsWith('cab-sh-')) return 'dc-002';
+    if (cabinetId.startsWith('cab-sz-')) return 'dc-003';
+    if (cabinetId.startsWith('cab-cd-')) return 'dc-004';
+    return undefined;
+};
+
 const getUnmountImpact = (deviceId: string): IDC.DeviceUnmountImpact => {
     const connectionCounts: Record<string, number> = {
         'dev-001': 3,
@@ -279,6 +287,7 @@ export default {
             current = 1,
             pageSize = 10,
             id,
+            datacenterId,
             cabinetId,
             templateId,
             name,
@@ -293,6 +302,11 @@ export default {
 
         if (id) {
             filteredData = filteredData.filter(d => d.id === String(id));
+        }
+        if (datacenterId) {
+            filteredData = filteredData.filter(
+                d => getDatacenterIdByCabinet(d.cabinetId) === String(datacenterId),
+            );
         }
         if (cabinetId) {
             filteredData = filteredData.filter(d => d.cabinetId === cabinetId);

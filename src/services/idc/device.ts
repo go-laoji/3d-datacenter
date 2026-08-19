@@ -4,6 +4,7 @@ import { request } from '@umijs/max';
 export async function getDevices(
     params?: IDC.PageParams & {
         id?: string;
+        datacenterId?: string;
         cabinetId?: string;
         templateId?: string;
         name?: string;

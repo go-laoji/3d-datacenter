@@ -228,6 +228,7 @@ const DevicePage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const requestedDeviceId = searchParams.get('deviceId') || undefined;
   const requestedStatus = searchParams.get('status') || undefined;
+  const requestedDatacenterId = searchParams.get('datacenterId') || undefined;
   const actionRef = useRef<ActionType>(null);
   const openedDeepLinkDeviceRef = useRef<string | undefined>(undefined);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -267,7 +268,7 @@ const DevicePage: React.FC = () => {
   useEffect(() => {
     if (!requestedDeviceId) openedDeepLinkDeviceRef.current = undefined;
     actionRef.current?.reload();
-  }, [requestedDeviceId, requestedStatus]);
+  }, [requestedDatacenterId, requestedDeviceId, requestedStatus]);
 
   const selectedTemplate = useMemo(() => {
     return templates.find((t) => t.id === selectedTemplateId);
@@ -698,7 +699,7 @@ const DevicePage: React.FC = () => {
         subTitle: '管理已上架的设备',
       }}
     >
-      {(requestedDeviceId || requestedStatus) && (
+      {(requestedDeviceId || requestedStatus || requestedDatacenterId) && (
         <Alert
           type="info"
           showIcon
@@ -706,7 +707,9 @@ const DevicePage: React.FC = () => {
           message={
             requestedDeviceId
               ? `已从工作台定位设备 ${requestedDeviceId}`
-              : `已按“${statusConfig[requestedStatus || '']?.text || requestedStatus}”状态筛选设备`
+              : requestedStatus
+                ? `已按“${statusConfig[requestedStatus]?.text || requestedStatus}”状态筛选设备`
+                : `已恢复站点上下文 ${requestedDatacenterId}`
           }
           description={
             requestedDeviceId
@@ -729,6 +732,7 @@ const DevicePage: React.FC = () => {
         request={async (params) => {
           const res = await getDevices({
             id: requestedDeviceId,
+            datacenterId: requestedDatacenterId,
             current: params.current,
             pageSize: params.pageSize,
             cabinetId: params.cabinetId,

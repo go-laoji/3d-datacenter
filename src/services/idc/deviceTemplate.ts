@@ -31,7 +31,10 @@ export async function createDeviceTemplate(data: IDC.DeviceTemplateCreateParams)
 }
 
 /** 更新设备模板 */
-export async function updateDeviceTemplate(id: string, data: Partial<IDC.DeviceTemplate>) {
+export async function updateDeviceTemplate(
+    id: string,
+    data: Partial<IDC.DeviceTemplateCreateParams>,
+) {
     return request<IDC.ApiResponse<IDC.DeviceTemplate>>(`/api/idc/device-templates/${id}`, {
         method: 'PUT',
         data,

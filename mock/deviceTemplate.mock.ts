@@ -399,7 +399,7 @@ export default {
     // 获取单个设备模板
     'GET /api/idc/device-templates/:id': async (req: Request, res: Response) => {
         await waitTime(200);
-        const { id } = req.params;
+        const id = String(req.params.id);
         const template = deviceTemplates.find(t => t.id === id);
 
         if (template) {
@@ -423,12 +423,13 @@ export default {
             uHeight: body.uHeight,
             portGroups: body.portGroups.map((pg, i) => ({
                 ...pg,
-                id: `pg-${i + 1}`,
+                id: `pg-${uuidv4().slice(0, 8)}-${i + 1}`,
             })),
             frontColor: body.frontColor || '#3d3d3d',
             isBuiltin: false,
             description: body.description,
             specs: body.specs,
+            maxPower: body.maxPower,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
@@ -440,8 +441,8 @@ export default {
     // 更新设备模板
     'PUT /api/idc/device-templates/:id': async (req: Request, res: Response) => {
         await waitTime(400);
-        const { id } = req.params;
-        const body = req.body;
+        const id = String(req.params.id);
+        const body = req.body as Partial<IDC.DeviceTemplateCreateParams>;
 
         const index = deviceTemplates.findIndex(t => t.id === id);
         if (index === -1) {
@@ -455,9 +456,15 @@ export default {
             return;
         }
 
+        const portGroups = body.portGroups?.map((portGroup, portGroupIndex) => ({
+            ...portGroup,
+            id: `pg-${id}-${portGroupIndex + 1}`,
+        }));
+
         deviceTemplates[index] = {
             ...deviceTemplates[index],
             ...body,
+            ...(portGroups ? { portGroups } : {}),
             updatedAt: new Date().toISOString(),
         };
 
@@ -467,7 +474,7 @@ export default {
     // 删除设备模板
     'DELETE /api/idc/device-templates/:id': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const index = deviceTemplates.findIndex(t => t.id === id);
         if (index === -1) {

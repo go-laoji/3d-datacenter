@@ -5,10 +5,7 @@ import {
   Button,
   Card,
   Col,
-  Form,
   Input,
-  InputNumber,
-  Modal,
   message,
   Row,
   Select,
@@ -16,216 +13,193 @@ import {
   Statistic,
   Table,
   Tag,
-  Tooltip,
+  Typography,
 } from 'antd';
 import { RefreshCw, Settings, Wifi, WifiOff } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { getDevices } from '@/services/idc/device';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  batchUpdatePortStatus,
   batchUpdatePortVlan,
   getPortsByDevice,
+  type PortBatchResult,
+  type PortView,
   updatePort,
 } from '@/services/idc/port';
+import PortBatchModal from './components/PortBatchModal';
+import PortConfigModal from './components/PortConfigModal';
+import PortDetailDrawer from './components/PortDetailDrawer';
+import PortDevicePicker from './components/PortDevicePicker';
+import { filterPorts } from './portFiltering';
+
+const statusLabels = {
+  up: ['success', '启用'],
+  down: ['default', '关闭'],
+  disabled: ['warning', '禁用'],
+  error: ['error', '错误'],
+} as const;
 
 const PortPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedDeviceId =
     searchParams.get('deviceId') || searchParams.get('device');
-  const [devices, setDevices] = useState<IDC.Device[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<string>();
-  const [ports, setPorts] = useState<IDC.Port[]>([]);
+  const requestedPortId = searchParams.get('portId');
+  const [device, setDevice] = useState<IDC.Device>();
+  const [ports, setPorts] = useState<PortView[]>([]);
   const [loading, setLoading] = useState(false);
-  const [configModalOpen, setConfigModalOpen] = useState(false);
-  const [currentPort, setCurrentPort] = useState<IDC.Port>();
-  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
-  const [batchModalOpen, setBatchModalOpen] = useState(false);
-  const [form] = Form.useForm();
-  const [batchForm] = Form.useForm();
+  const [current, setCurrent] = useState<PortView>();
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '');
+  const [status, setStatus] = useState(searchParams.get('status') ?? undefined);
+  const [linkStatus, setLinkStatus] = useState(
+    searchParams.get('linkStatus') ?? undefined,
+  );
+  const [speed, setSpeed] = useState(searchParams.get('speed') ?? undefined);
+  const [vlan, setVlan] = useState(searchParams.get('vlan') ?? '');
 
-  useEffect(() => {
-    let cancelled = false;
-    getDevices({ pageSize: 1000 }).then((res) => {
-      if (!cancelled && res.success) {
-        const nextDevices = res.data || [];
-        setDevices(nextDevices);
-        if (requestedDeviceId) {
-          const requestedDevice = nextDevices.find(
-            (device) => device.id === requestedDeviceId,
-          );
-          if (requestedDevice) {
-            setSelectedDevice(requestedDevice.id);
-          } else {
-            setSelectedDevice(undefined);
-            message.warning('链接中的设备不存在或当前不可访问');
-          }
-        }
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [requestedDeviceId]);
+  const syncUrl = (values: Record<string, string | undefined>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(values).forEach(([key, value]) =>
+      value ? next.set(key, value) : next.delete(key),
+    );
+    next.delete('device');
+    setSearchParams(next, { replace: true });
+  };
 
   const loadPorts = async (deviceId: string) => {
     setLoading(true);
     try {
-      const res = await getPortsByDevice(deviceId);
-      if (res.success) {
-        setPorts(res.data || []);
-      }
+      const result = await getPortsByDevice(deviceId);
+      if (!result.success) return;
+      const nextPorts = result.data ?? [];
+      setPorts(nextPorts);
+      const requested = nextPorts.find((port) => port.id === requestedPortId);
+      if (requestedPortId && requested) {
+        setCurrent(requested);
+        setDetailOpen(true);
+      } else if (requestedPortId)
+        message.warning('链接中的端口不存在或不属于当前设备');
     } finally {
       setLoading(false);
     }
   };
 
-  // 获取当前设备信息
-  const selectedDeviceInfo = devices.find((d) => d.id === selectedDevice);
-
   useEffect(() => {
-    if (selectedDevice) {
-      setSelectedRowKeys([]);
-      void loadPorts(selectedDevice);
-    } else {
-      setPorts([]);
-      setSelectedRowKeys([]);
-    }
-  }, [selectedDevice]);
+    if (device) {
+      setSelectedIds([]);
+      void loadPorts(device.id);
+    } else setPorts([]);
+  }, [device?.id]);
 
-  const statusColors: Record<string, string> = {
-    up: 'success',
-    down: 'default',
-    disabled: 'warning',
-    error: 'error',
+  const filteredPorts = useMemo(
+    () => filterPorts(ports, { keyword, status, linkStatus, speed, vlan }),
+    [ports, keyword, status, linkStatus, speed, vlan],
+  );
+  const selectedPorts = ports.filter((port) => selectedIds.includes(port.id));
+
+  const openDetail = (port: PortView) => {
+    setCurrent(port);
+    setDetailOpen(true);
+    syncUrl({ deviceId: device?.id, portId: port.id });
+  };
+  const openConfig = (port: PortView) => {
+    setCurrent(port);
+    setConfigOpen(true);
   };
 
   const columns = [
     {
       title: '端口',
       dataIndex: 'portNumber',
-      width: 100,
-      render: (text: string, record: IDC.Port) => (
-        <Space>
-          {record.linkStatus === 'connected' ? (
-            <Wifi size={14} style={{ color: '#52c41a' }} />
-          ) : (
-            <WifiOff size={14} style={{ color: '#8c8c8c' }} />
-          )}
-          <span style={{ fontWeight: 500 }}>{text}</span>
+      width: 130,
+      render: (_: string, port: PortView) => (
+        <Button
+          type="link"
+          style={{ paddingInline: 0 }}
+          onClick={() => openDetail(port)}
+        >
+          <Space>
+            {port.linkStatus === 'connected' ? (
+              <Wifi size={14} color="#52c41a" />
+            ) : (
+              <WifiOff size={14} />
+            )}
+            {port.portNumber}
+          </Space>
+        </Button>
+      ),
+    },
+    {
+      title: '类型 / 速率',
+      width: 120,
+      render: (_: unknown, port: PortView) => (
+        <Space size={4}>
+          <Tag>{port.portType}</Tag>
+          <Tag color="blue">{port.speed}</Tag>
         </Space>
       ),
     },
     {
-      title: '别名',
-      dataIndex: 'portAlias',
-      width: 120,
-      render: (text: string) => text || '-',
-    },
-    {
-      title: '类型',
-      dataIndex: 'portType',
-      width: 100,
-      render: (text: string) => <Tag>{text}</Tag>,
-    },
-    {
-      title: '速率',
-      dataIndex: 'speed',
-      width: 80,
-    },
-    {
       title: '状态',
       dataIndex: 'status',
-      width: 80,
-      render: (status: string) => (
-        <Badge
-          status={statusColors[status] as any}
-          text={
-            status === 'up'
-              ? '启用'
-              : status === 'down'
-                ? '关闭'
-                : status === 'disabled'
-                  ? '禁用'
-                  : '错误'
-          }
-        />
-      ),
-    },
-    {
-      title: '连接',
-      dataIndex: 'linkStatus',
-      width: 80,
-      render: (status: string) => (
-        <Tag color={status === 'connected' ? 'success' : 'default'}>
-          {status === 'connected' ? '已连接' : '未连接'}
-        </Tag>
-      ),
-    },
-    {
-      title: 'VLAN模式',
-      dataIndex: ['vlanConfig', 'mode'],
       width: 90,
-      render: (mode: string) =>
-        mode ? (
-          <Tag
-            color={
-              mode === 'access' ? 'blue' : mode === 'trunk' ? 'purple' : 'cyan'
-            }
-          >
-            {mode.toUpperCase()}
-          </Tag>
+      render: (value: PortView['status']) => (
+        <Badge status={statusLabels[value][0]} text={statusLabels[value][1]} />
+      ),
+    },
+    {
+      title: '连接对端',
+      width: 210,
+      render: (_: unknown, port: PortView) =>
+        port.linkStatus === 'connected' ? (
+          <Space direction="vertical" size={0}>
+            <strong>{port.connectedDeviceName ?? '关系待核对'}</strong>
+            <Typography.Text type="secondary">
+              {port.connectedPortName ?? port.connectionPurpose ?? '采集占用'}
+            </Typography.Text>
+          </Space>
+        ) : (
+          <Typography.Text type="secondary">未连接</Typography.Text>
+        ),
+    },
+    {
+      title: 'VLAN',
+      width: 150,
+      render: (_: unknown, port: PortView) =>
+        port.vlanConfig ? (
+          <Space>
+            <Tag color="purple">{port.vlanConfig.mode.toUpperCase()}</Tag>PVID{' '}
+            {port.vlanConfig.pvid}
+          </Space>
         ) : (
           '-'
         ),
     },
     {
-      title: 'PVID',
-      dataIndex: ['vlanConfig', 'pvid'],
-      width: 70,
-      render: (pvid: number) => pvid || '-',
+      title: 'MAC / 安全',
+      width: 170,
+      render: (_: unknown, port: PortView) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text>{port.learnedMacs[0] ?? '-'}</Typography.Text>
+          <Typography.Text type="secondary">
+            {port.portSecurity ? '端口安全已启用' : '未启用端口安全'}
+          </Typography.Text>
+        </Space>
+      ),
     },
-    {
-      title: '允许VLAN',
-      dataIndex: ['vlanConfig', 'allowedVlans'],
-      width: 150,
-      ellipsis: true,
-      render: (vlans: number[]) =>
-        vlans?.length ? (
-          <Tooltip title={vlans.join(', ')}>
-            {vlans.slice(0, 3).join(', ')}
-            {vlans.length > 3 ? `...+${vlans.length - 3}` : ''}
-          </Tooltip>
-        ) : (
-          '-'
-        ),
-    },
-    {
-      title: '描述',
-      dataIndex: 'description',
-      ellipsis: true,
-      width: 150,
-      render: (text: string) => text || '-',
-    },
+    { title: '最近变化', dataIndex: 'lastChangedAt', width: 150 },
     {
       title: '操作',
-      width: 100,
+      width: 90,
       fixed: 'right' as const,
-      render: (_: any, record: IDC.Port) => (
+      render: (_: unknown, port: PortView) => (
         <Button
           type="link"
           size="small"
           icon={<Settings size={14} />}
-          onClick={() => {
-            setCurrentPort(record);
-            form.setFieldsValue({
-              portAlias: record.portAlias,
-              status: record.status,
-              vlanMode: record.vlanConfig?.mode,
-              pvid: record.vlanConfig?.pvid,
-              allowedVlans: record.vlanConfig?.allowedVlans || [],
-              description: record.description,
-            });
-            setConfigModalOpen(true);
-          }}
+          onClick={() => openConfig(port)}
         >
           配置
         </Button>
@@ -233,237 +207,220 @@ const PortPage: React.FC = () => {
     },
   ];
 
-  const handleSaveConfig = async () => {
-    if (!currentPort) return;
-
-    const values = form.getFieldsValue();
-    const allowedVlans = Array.isArray(values.allowedVlans)
-      ? values.allowedVlans
-          .map((v: string | number) =>
-            typeof v === 'string' ? parseInt(v, 10) : v,
-          )
-          .filter((v: number) => !Number.isNaN(v))
-      : undefined;
-
-    const data: IDC.PortUpdateParams = {
-      portAlias: values.portAlias,
-      status: values.status,
-      vlanConfig: values.vlanMode
-        ? {
-            mode: values.vlanMode,
-            pvid: values.pvid || 1,
-            allowedVlans,
-          }
-        : undefined,
-      description: values.description,
-    };
-
-    const res = await updatePort(currentPort.id, data);
-    if (res.success) {
-      message.success('配置保存成功');
-      setConfigModalOpen(false);
-      if (selectedDevice) loadPorts(selectedDevice);
-    }
-  };
-
-  const handleBatchVlan = async () => {
-    const values = batchForm.getFieldsValue();
-    const allowedVlans = Array.isArray(values.allowedVlans)
-      ? values.allowedVlans
-          .map((v: string | number) =>
-            typeof v === 'string' ? parseInt(v, 10) : v,
-          )
-          .filter((v: number) => !Number.isNaN(v))
-      : undefined;
-
-    const vlanConfig: IDC.VlanConfig = {
-      mode: values.vlanMode,
-      pvid: values.pvid || 1,
-      allowedVlans,
-    };
-
-    const res = await batchUpdatePortVlan(selectedRowKeys, vlanConfig);
-    if (res.success) {
-      message.success(`成功更新 ${selectedRowKeys.length} 个端口的VLAN配置`);
-      setBatchModalOpen(false);
-      setSelectedRowKeys([]);
-      if (selectedDevice) loadPorts(selectedDevice);
-    }
-  };
-
   return (
     <PageContainer
       header={{
-        title: '端口配置',
-        subTitle: '管理交换机端口VLAN、QoS等配置',
+        title: '端口管理',
+        subTitle: '围绕设备、连接、VLAN、安全与最近变化完成端口运维',
       }}
     >
       <Card>
-        <Space style={{ marginBottom: 16 }}>
-          <span>选择设备：</span>
-          <Select
-            placeholder="请选择设备"
-            style={{ width: 300 }}
-            showSearch
-            optionFilterProp="label"
-            value={selectedDevice}
-            onChange={setSelectedDevice}
-            options={devices.map((d) => ({ value: d.id, label: d.name }))}
+        <Space wrap style={{ marginBottom: 16 }}>
+          <PortDevicePicker
+            value={device?.id}
+            requestedDeviceId={requestedDeviceId}
+            onChange={(next) => {
+              setDevice(next);
+              syncUrl({
+                deviceId: next?.id,
+                portId:
+                  next?.id === requestedDeviceId
+                    ? (requestedPortId ?? undefined)
+                    : undefined,
+              });
+              if (requestedDeviceId && !next)
+                message.warning('链接中的设备不存在或不可访问');
+            }}
           />
-          {selectedDevice && (
+          {device ? (
             <Button
               icon={<RefreshCw size={14} />}
-              onClick={() => loadPorts(selectedDevice)}
+              onClick={() => loadPorts(device.id)}
             >
               刷新
             </Button>
-          )}
-          {selectedRowKeys.length > 0 && (
-            <Button type="primary" onClick={() => setBatchModalOpen(true)}>
-              批量配置VLAN ({selectedRowKeys.length})
+          ) : null}
+          {selectedIds.length ? (
+            <Button type="primary" onClick={() => setBatchOpen(true)}>
+              批量变更 ({selectedIds.length})
             </Button>
-          )}
+          ) : null}
         </Space>
-
-        {/* 设备摘要卡片 */}
-        {selectedDeviceInfo && (
-          <Row gutter={16} style={{ marginBottom: 16 }}>
-            <Col span={6}>
-              <Statistic
-                title="设备名称"
-                value={selectedDeviceInfo.name}
-                valueStyle={{ fontSize: 14 }}
-              />
+        {device ? (
+          <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+            <Col xs={12} md={6}>
+              <Statistic title="端口总数" value={ports.length} />
             </Col>
-            <Col span={6}>
-              <Statistic title="端口总数" value={ports.length} suffix="个" />
-            </Col>
-            <Col span={6}>
+            <Col xs={12} md={6}>
               <Statistic
                 title="已连接"
-                value={ports.filter((p) => p.linkStatus === 'connected').length}
-                valueStyle={{ color: '#52c41a' }}
-                suffix="个"
+                value={
+                  ports.filter((port) => port.linkStatus === 'connected').length
+                }
               />
             </Col>
-            <Col span={6}>
+            <Col xs={12} md={6}>
               <Statistic
-                title="启用"
-                value={ports.filter((p) => p.status === 'up').length}
-                valueStyle={{ color: '#1890ff' }}
-                suffix="个"
+                title="可用"
+                value={
+                  ports.filter(
+                    (port) =>
+                      port.status === 'up' &&
+                      port.linkStatus === 'disconnected',
+                  ).length
+                }
+              />
+            </Col>
+            <Col xs={12} md={6}>
+              <Statistic
+                title="异常 / 禁用"
+                value={
+                  ports.filter((port) =>
+                    ['error', 'disabled'].includes(port.status),
+                  ).length
+                }
+                valueStyle={{ color: '#cf1322' }}
               />
             </Col>
           </Row>
-        )}
-
+        ) : null}
+        <Space wrap style={{ marginBottom: 12 }}>
+          <Input.Search
+            aria-label="搜索端口"
+            placeholder="端口、别名、对端或用途"
+            allowClear
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            onSearch={(value) => syncUrl({ keyword: value })}
+            style={{ width: 250 }}
+          />
+          <Select
+            aria-label="端口状态筛选"
+            allowClear
+            placeholder="管理状态"
+            value={status}
+            onChange={(value) => {
+              setStatus(value);
+              syncUrl({ status: value });
+            }}
+            options={['up', 'down', 'disabled', 'error'].map((value) => ({
+              value,
+              label: statusLabels[value as keyof typeof statusLabels][1],
+            }))}
+          />
+          <Select
+            aria-label="连接状态筛选"
+            allowClear
+            placeholder="连接状态"
+            value={linkStatus}
+            onChange={(value) => {
+              setLinkStatus(value);
+              syncUrl({ linkStatus: value });
+            }}
+            options={[
+              { value: 'connected', label: '已连接' },
+              { value: 'disconnected', label: '未连接' },
+            ]}
+          />
+          <Select
+            aria-label="速率筛选"
+            allowClear
+            placeholder="速率"
+            value={speed}
+            onChange={(value) => {
+              setSpeed(value);
+              syncUrl({ speed: value });
+            }}
+            options={['1G', '10G', '25G', '40G', '100G'].map((value) => ({
+              value,
+              label: value,
+            }))}
+          />
+          <Input
+            aria-label="VLAN 筛选"
+            placeholder="VLAN ID"
+            value={vlan}
+            onChange={(event) => {
+              setVlan(event.target.value);
+              syncUrl({ vlan: event.target.value });
+            }}
+            style={{ width: 110 }}
+          />
+        </Space>
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={ports}
+          dataSource={filteredPorts}
           loading={loading}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1200 }}
           rowSelection={{
-            selectedRowKeys,
-            onChange: (keys) => setSelectedRowKeys(keys as string[]),
+            selectedRowKeys: selectedIds,
+            onChange: (keys) => setSelectedIds(keys as string[]),
           }}
           pagination={{
             showSizeChanger: true,
-            showQuickJumper: true,
             showTotal: (total) => `共 ${total} 个端口`,
           }}
         />
       </Card>
-
-      {/* 端口配置模态框 */}
-      <Modal
-        title={`配置端口 ${currentPort?.portNumber}`}
-        open={configModalOpen}
-        onCancel={() => setConfigModalOpen(false)}
-        onOk={handleSaveConfig}
-        okText="保存"
-        width={500}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item name="portAlias" label="端口别名">
-            <Input placeholder="请输入端口别名" />
-          </Form.Item>
-          <Form.Item name="status" label="端口状态">
-            <Select
-              options={[
-                { value: 'up', label: '启用' },
-                { value: 'down', label: '关闭' },
-                { value: 'disabled', label: '禁用' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="vlanMode" label="VLAN模式">
-            <Select
-              allowClear
-              options={[
-                { value: 'access', label: 'Access' },
-                { value: 'trunk', label: 'Trunk' },
-                { value: 'hybrid', label: 'Hybrid' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="pvid" label="PVID">
-            <InputNumber min={1} max={4094} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            name="allowedVlans"
-            label="允许VLAN"
-            tooltip="输入VLAN ID后按回车添加"
-          >
-            <Select
-              mode="tags"
-              placeholder="输入VLAN ID按回车添加，如 1, 100, 200"
-              tokenSeparators={[',', ' ']}
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea placeholder="请输入描述" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 批量VLAN配置模态框 */}
-      <Modal
-        title={`批量配置VLAN (${selectedRowKeys.length}个端口)`}
-        open={batchModalOpen}
-        onCancel={() => setBatchModalOpen(false)}
-        onOk={handleBatchVlan}
-        okText="应用"
-        width={400}
-      >
-        <Form form={batchForm} layout="vertical">
-          <Form.Item
-            name="vlanMode"
-            label="VLAN模式"
-            rules={[{ required: true, message: '请选择VLAN模式' }]}
-          >
-            <Select
-              options={[
-                { value: 'access', label: 'Access' },
-                { value: 'trunk', label: 'Trunk' },
-                { value: 'hybrid', label: 'Hybrid' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="pvid" label="PVID" initialValue={1}>
-            <InputNumber min={1} max={4094} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="allowedVlans" label="允许VLAN">
-            <Select
-              mode="tags"
-              placeholder="输入VLAN ID按回车添加"
-              tokenSeparators={[',', ' ']}
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <PortDetailDrawer
+        open={detailOpen}
+        port={current}
+        device={device}
+        onClose={() => {
+          setDetailOpen(false);
+          syncUrl({ portId: undefined });
+        }}
+        onConfigure={() => {
+          setDetailOpen(false);
+          setConfigOpen(true);
+        }}
+      />
+      <PortConfigModal
+        open={configOpen}
+        port={current}
+        onClose={() => setConfigOpen(false)}
+        onSave={async (values) => {
+          if (!current || !device) return;
+          const result = await updatePort(current.id, values);
+          if (result.success) {
+            message.success('端口配置已保存');
+            setConfigOpen(false);
+            await loadPorts(device.id);
+          }
+        }}
+      />
+      <PortBatchModal
+        open={batchOpen}
+        ports={selectedPorts}
+        onClose={() => {
+          setBatchOpen(false);
+          setSelectedIds([]);
+          if (device) void loadPorts(device.id);
+        }}
+        onApplyVlan={async (config) => {
+          const result = await batchUpdatePortVlan(selectedIds, config);
+          return selectedIds.map((portId) => ({
+            portId,
+            success: result.success,
+            message: result.success ? 'VLAN 配置更新成功' : '更新失败',
+          }));
+        }}
+        onApplyStatus={async (nextStatus) => {
+          const result = await batchUpdatePortStatus(selectedIds, nextStatus);
+          return (
+            result.data?.results ??
+            selectedIds.map(
+              (portId) =>
+                ({
+                  portId,
+                  success: false,
+                  message: '未返回执行结果',
+                }) as PortBatchResult,
+            )
+          );
+        }}
+      />
     </PageContainer>
   );
 };

@@ -174,6 +174,8 @@ let connections: IDC.Connection[] = [
     },
 ];
 
+export const connectionsData = connections;
+
 const waitTime = (time: number = 100) => {
     return new Promise((resolve) => {
         setTimeout(() => {

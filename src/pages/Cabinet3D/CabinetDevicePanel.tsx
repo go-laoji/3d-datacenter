@@ -1,15 +1,8 @@
 import { history } from '@umijs/max';
 import { Badge, Button, Card, Descriptions, Empty, Space, Tag } from 'antd';
-import { Crosshair, ExternalLink, X } from 'lucide-react';
+import { Crosshair, X } from 'lucide-react';
+import { EntityLink, EntityStatus } from '@/components/operations';
 import styles from './index.less';
-
-const statusConfig: Record<string, { color: string; label: string }> = {
-  online: { color: 'success', label: '在线' },
-  offline: { color: 'default', label: '离线' },
-  warning: { color: 'warning', label: '告警' },
-  error: { color: 'error', label: '故障' },
-  maintenance: { color: 'processing', label: '维护中' },
-};
 
 interface CabinetDevicePanelProps {
   device: IDC.Device;
@@ -51,7 +44,9 @@ export function CabinetDevicePanel({
     >
       <Descriptions column={1} size="small">
         <Descriptions.Item label="资产编码">
-          {device.assetCode}
+          <EntityLink type="device" id={device.id}>
+            {device.assetCode}
+          </EntityLink>
         </Descriptions.Item>
         <Descriptions.Item label="型号">
           {template ? `${template.brand} ${template.model}` : device.templateId}
@@ -67,9 +62,7 @@ export function CabinetDevicePanel({
             '待补充'}
         </Descriptions.Item>
         <Descriptions.Item label="状态">
-          <Tag color={statusConfig[device.status]?.color}>
-            {statusConfig[device.status]?.label}
-          </Tag>
+          <EntityStatus status={device.status} />
         </Descriptions.Item>
       </Descriptions>
 
@@ -101,7 +94,6 @@ export function CabinetDevicePanel({
           镜头聚焦
         </Button>
         <Button
-          icon={<ExternalLink size={14} />}
           onClick={() => history.push(`/idc/device?deviceId=${device.id}`)}
         >
           资产详情

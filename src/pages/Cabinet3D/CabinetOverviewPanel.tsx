@@ -1,5 +1,5 @@
-import { Badge, Card, Progress, Statistic } from 'antd';
-import dayjs from 'dayjs';
+import { Card, Progress, Statistic } from 'antd';
+import { DataFreshness } from '@/components/operations';
 import type { Cabinet3DStats } from './cabinet3dModel';
 import styles from './index.less';
 
@@ -72,11 +72,7 @@ export function CabinetOverviewPanel({
         />
       </div>
       <div className={styles.freshness}>
-        <Badge status={refreshedAt ? 'success' : 'default'} />
-        <span>
-          Mock 资产/端口 ·{' '}
-          {refreshedAt ? dayjs(refreshedAt).format('HH:mm:ss') : '等待刷新'}
-        </span>
+        <DataFreshness source="Mock 资产/端口" collectedAt={refreshedAt} />
       </div>
     </Card>
   );

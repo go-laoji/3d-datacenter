@@ -1,6 +1,6 @@
 import { Badge, Progress, Tooltip } from 'antd';
-import dayjs from 'dayjs';
 import { Box, Cable, Server, WifiOff } from 'lucide-react';
+import { DataFreshness } from '@/components/operations';
 import type { SceneStats } from './datacenter3dModel';
 import styles from './index.less';
 
@@ -61,14 +61,11 @@ export function Datacenter3DStats({
         </div>
       </Tooltip>
       <div className={styles.freshness}>
-        <Badge status={refreshedAt ? 'success' : 'default'} />
-        <span>
-          Mock 场景 ·{' '}
-          {refreshedAt
-            ? `${dayjs(refreshedAt).format('HH:mm:ss')} 刷新`
-            : '等待刷新'}
-          {filtered ? ' · 已筛选' : ''}
-        </span>
+        <DataFreshness
+          source="Mock 场景"
+          collectedAt={refreshedAt}
+          suffix={filtered ? ' · 已筛选' : undefined}
+        />
       </div>
     </section>
   );

@@ -60,6 +60,28 @@ const powerLinks = [
     { id: 'link-107', source: 'pdu-101', target: 'dev-102', powerPath: 'A', status: 'active', datacenterId: 'dc-002' },
 ];
 
+const collectedAt = '2026-08-20T02:10:00Z';
+
+const enrichNode = (node: (typeof powerNodes)[number]) => ({
+    ...node,
+    cabinetId: node.type === 'device' || node.type === 'pdu'
+        ? node.id.includes('101') || node.id.includes('102') ? 'cab-sh-001' : node.id.endsWith('004') ? 'cab-bj-003' : 'cab-bj-001'
+        : undefined,
+    assetCode: node.id.toUpperCase(),
+    ratedPower: node.capacity,
+    source: node.type === 'utility' ? '智能电表 / POWER-GW-01' : 'SNMP / POWER-GW-01',
+    collectedAt,
+    quality: node.status === 'warning' ? 'delayed' : 'good',
+});
+
+const enrichLink = (link: (typeof powerLinks)[number]) => ({
+    ...link,
+    sourcePort: `${link.source}-OUT-${link.powerPath}`,
+    targetPort: `${link.target}-IN-${link.powerPath}`,
+    ratedCurrent: link.target.startsWith('dev-') ? 16 : 63,
+    collectedAt,
+});
+
 // 按数据中心过滤节点
 const filterNodesByDatacenter = (datacenterId?: string) => {
     if (!datacenterId) return powerNodes;
@@ -76,8 +98,8 @@ export default {
     // 获取电源拓扑
     'GET /api/power/topology': (req: Request, res: Response) => {
         const { datacenterId } = req.query;
-        const nodes = filterNodesByDatacenter(datacenterId as string | undefined);
-        const links = filterLinksByDatacenter(datacenterId as string | undefined);
+        const nodes = filterNodesByDatacenter(datacenterId as string | undefined).map(enrichNode);
+        const links = filterLinksByDatacenter(datacenterId as string | undefined).map(enrichLink);
 
         res.json({
             success: true,
@@ -111,12 +133,12 @@ export default {
             if (device) {
                 if (paths.size >= 2) {
                     dualPowerDevices.push({
-                        ...device,
+                        ...enrichNode(device),
                         powerPaths: Array.from(paths),
                     });
                 } else {
                     singlePowerDevices.push({
-                        ...device,
+                        ...enrichNode(device),
                         powerPaths: Array.from(paths),
                         risk: 'single-point-failure',
                     });
@@ -173,14 +195,65 @@ export default {
                 pathA: {
                     load: pathALoad,
                     percentage: totalLoad > 0 ? (pathALoad / totalLoad * 100).toFixed(2) + '%' : '0%',
+                    capacity: 30000,
                 },
                 pathB: {
                     load: pathBLoad,
                     percentage: totalLoad > 0 ? (pathBLoad / totalLoad * 100).toFixed(2) + '%' : '0%',
+                    capacity: 30000,
                 },
                 totalLoad,
                 balanceRate: balanceRate.toFixed(2) + '%',
                 status: balanceRate < 10 ? 'balanced' : balanceRate < 20 ? 'warning' : 'unbalanced',
+                source: '电源采集网关 / POWER-GW-01',
+                collectedAt,
+            },
+        });
+    },
+
+    'POST /api/power/simulate': (req: Request, res: Response) => {
+        const { datacenterId, nodeId } = req.body as { datacenterId: string; nodeId: string };
+        const nodes = filterNodesByDatacenter(datacenterId);
+        const links = filterLinksByDatacenter(datacenterId);
+        const failed = nodes.find(node => node.id === nodeId);
+        if (!failed) {
+            res.status(404).json({ success: false, errorMessage: '电源节点不存在' });
+            return;
+        }
+        const descendants = new Set([nodeId]);
+        let changed = true;
+        while (changed) {
+            changed = false;
+            links.forEach((link) => {
+                if (descendants.has(link.source) && !descendants.has(link.target)) {
+                    descendants.add(link.target);
+                    changed = true;
+                }
+            });
+        }
+        const affected = nodes.filter(node => node.type === 'device' && descendants.has(node.id));
+        const transferred = affected.filter(device =>
+            links.some(link => link.target === device.id && !descendants.has(link.source)),
+        );
+        const offline = affected.filter(device => !transferred.includes(device));
+        const impactedLoad = affected.reduce((sum, node) => sum + (node.load || 0), 0);
+        const failedPath = links.find(link => link.source === nodeId || link.target === nodeId)?.powerPath || 'A';
+        res.json({
+            success: true,
+            data: {
+                failedNodeId: nodeId,
+                failedNodeName: failed.name,
+                affectedDeviceIds: affected.map(node => node.id),
+                transferredDeviceIds: transferred.map(node => node.id),
+                offlineDeviceIds: offline.map(node => node.id),
+                impactedLoad,
+                predictedPathA: failedPath === 'B' ? 20200 : 0,
+                predictedPathB: failedPath === 'A' ? 21850 : 0,
+                overloadedNodeIds: failedPath === 'A' && transferred.length > 1 ? ['pdu-004'] : [],
+                severity: offline.length > 0 ? 'high' : transferred.length > 1 ? 'medium' : 'low',
+                explanation: offline.length
+                    ? `${offline.length} 台单路设备将断电，${transferred.length} 台双路设备自动切换。`
+                    : `${transferred.length} 台设备可自动切换，需关注备用路径负载。`,
             },
         });
     },

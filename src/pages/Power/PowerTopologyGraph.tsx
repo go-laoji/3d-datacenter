@@ -1,295 +1,146 @@
-/**
- * 电源拓扑图形组件
- * 使用 @antv/g6 实现分层布局展示电源链路
- */
-import { Graph } from '@antv/g6';
-import { Empty, Spin } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import { Empty, Space, Tag, Typography } from 'antd';
+import {
+  ArrowDown,
+  BatteryCharging,
+  Server,
+  Unplug,
+  UtilityPole,
+  Zap,
+} from 'lucide-react';
 import type { PowerLink, PowerNode } from '@/services/idc/power';
 import styles from './index.less';
-import {
-  getEdgeColor,
-  getNodeStyleByPowerType,
-  powerPathColors,
-  powerTypeColors,
-} from './nodes';
 
-interface PowerTopologyGraphProps {
+interface Props {
   nodes: PowerNode[];
   links: PowerLink[];
-  loading?: boolean;
+  selectedId?: string;
+  pathFilter?: 'A' | 'B';
+  onSelect: (node: PowerNode) => void;
 }
 
-const PowerTopologyGraph: React.FC<PowerTopologyGraphProps> = ({
+const nodeTypes: Array<{
+  type: PowerNode['type'];
+  label: string;
+  icon: React.ReactNode;
+}> = [
+  { type: 'utility', label: '市电输入', icon: <UtilityPole size={17} /> },
+  { type: 'ups', label: 'UPS', icon: <BatteryCharging size={17} /> },
+  { type: 'pdu', label: 'PDU 配电', icon: <Zap size={17} /> },
+  { type: 'device', label: 'IT 设备', icon: <Server size={17} /> },
+];
+
+const PowerTopologyGraph = ({
   nodes,
   links,
-  loading = false,
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const graphRef = useRef<Graph | null>(null);
-  const [graphReady, setGraphReady] = useState(false);
-
-  // 初始化和更新图
-  useEffect(() => {
-    if (!containerRef.current || nodes.length === 0 || loading) {
-      return;
-    }
-
-    // 转换数据为 G6 格式
-    const g6Data = {
-      nodes: nodes.map((node) => ({
-        id: node.id,
-        data: {
-          label: node.name,
-          type: node.type,
-          status: node.status,
-          load: node.load,
-          capacity: node.capacity,
-        },
-        style: getNodeStyleByPowerType(node.type),
-      })),
-      edges: links.map((link) => ({
-        id: link.id,
-        source: link.source,
-        target: link.target,
-        data: {
-          powerPath: link.powerPath,
-          status: link.status,
-        },
-        style: {
-          stroke: getEdgeColor(link.powerPath, link.status),
-          lineWidth: 2,
-          endArrow: true,
-        },
-      })),
-    };
-
-    // 如果图已存在，销毁旧图
-    if (graphRef.current) {
-      try {
-        graphRef.current.destroy();
-      } catch (e) {
-        console.warn('Graph destroy error:', e);
-      }
-      graphRef.current = null;
-    }
-
-    // 创建新图
-    const graph = new Graph({
-      container: containerRef.current,
-      width: containerRef.current.clientWidth || 800,
-      height: 500,
-      autoFit: 'view',
-      padding: [40, 60, 40, 60],
-      data: g6Data,
-      layout: {
-        type: 'dagre',
-        rankdir: 'TB', // 从上到下
-        nodesep: 60, // 节点间距
-        ranksep: 80, // 层间距
-        align: 'UL',
-      },
-      node: {
-        style: {
-          labelText: (d: any) => {
-            const label = d.data?.label || d.id;
-            return label.length > 10 ? `${label.slice(0, 10)}...` : label;
-          },
-          labelPlacement: 'bottom',
-          labelFill: '#262626',
-          labelFontSize: 11,
-          labelFontWeight: 500,
-          labelOffsetY: 8,
-        },
-        state: {
-          hover: {
-            lineWidth: 3,
-            shadowBlur: 15,
-          },
-          selected: {
-            lineWidth: 3,
-            stroke: '#1890ff',
-          },
-        },
-      },
-      edge: {
-        style: {
-          lineWidth: 2,
-          endArrow: true,
-          endArrowSize: 6,
-        },
-        state: {
-          hover: {
-            lineWidth: 3,
-          },
-          selected: {
-            lineWidth: 3,
-            stroke: '#1890ff',
-          },
-        },
-      },
-      behaviors: [
-        'drag-canvas',
-        'zoom-canvas',
-        'drag-element',
-        {
-          type: 'hover-activate',
-          degree: 1,
-          state: 'hover',
-        },
-      ],
-      plugins: [
-        {
-          type: 'tooltip',
-          getContent: (_e: any, items: any[]) => {
-            if (!items || items.length === 0) return '';
-            const item = items[0];
-            const data = item.data || {};
-            const typeLabel: Record<string, string> = {
-              utility: '市电',
-              ups: 'UPS',
-              pdu: 'PDU',
-              device: '设备',
-            };
-            const statusLabel: Record<string, string> = {
-              online: '在线',
-              warning: '告警',
-              offline: '离线',
-            };
-
-            let loadInfo = '';
-            if (data.capacity) {
-              const loadPercent = data.load
-                ? Math.round((data.load / data.capacity) * 100)
-                : 0;
-              loadInfo = `<div>负载: ${data.load || 0}W / ${data.capacity}W (${loadPercent}%)</div>`;
-            } else if (data.load) {
-              loadInfo = `<div>功耗: ${data.load}W</div>`;
-            }
-
-            return `
-              <div style="padding: 8px 12px; font-size: 13px;">
-                <div style="font-weight: bold; margin-bottom: 4px;">${data.label || item.id}</div>
-                <div>类型: ${typeLabel[data.type] || data.type}</div>
-                <div>状态: ${statusLabel[data.status] || data.status}</div>
-                ${loadInfo}
-              </div>
-            `;
-          },
-        },
-      ],
-    });
-
-    graphRef.current = graph;
-
-    // 渲染图
-    graph
-      .render()
-      .then(() => {
-        setGraphReady(true);
-      })
-      .catch((err: Error) => {
-        console.error('Graph render error:', err);
-      });
-
-    // 清理函数
-    return () => {
-      if (graphRef.current) {
-        try {
-          graphRef.current.destroy();
-        } catch (e) {
-          console.warn('Graph cleanup error:', e);
-        }
-        graphRef.current = null;
-      }
-    };
-  }, [nodes, links, loading]);
-
-  // 窗口大小变化时调整图大小
-  useEffect(() => {
-    const handleResize = () => {
-      if (graphRef.current && containerRef.current) {
-        try {
-          graphRef.current.setSize(containerRef.current.clientWidth, 500);
-        } catch (e) {
-          console.warn('Graph resize error:', e);
-        }
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  selectedId,
+  pathFilter,
+  onSelect,
+}: Props) => {
+  const visibleNodeIds = new Set(
+    pathFilter
+      ? links
+          .filter((link) => link.powerPath === pathFilter)
+          .flatMap((link) => [link.source, link.target])
+      : nodes.map((node) => node.id),
+  );
+  const visibleNodes = nodes.filter((node) => visibleNodeIds.has(node.id));
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  if (!visibleNodes.length) return <Empty description="当前路径暂无拓扑数据" />;
 
   return (
     <div className={styles.powerTopologyContainer}>
-      {/* 图例 */}
       <div className={styles.legend}>
-        <div className={styles.legendSection}>
-          <span className={styles.legendTitle}>节点类型：</span>
-          <span className={styles.legendItem}>
-            <span
-              className={styles.legendNode}
-              style={{ borderColor: powerTypeColors.utility }}
-            />
-            市电
-          </span>
-          <span className={styles.legendItem}>
-            <span
-              className={styles.legendNode}
-              style={{ borderColor: powerTypeColors.ups }}
-            />
-            UPS
-          </span>
-          <span className={styles.legendItem}>
-            <span
-              className={styles.legendNode}
-              style={{ borderColor: powerTypeColors.pdu }}
-            />
-            PDU
-          </span>
-          <span className={styles.legendItem}>
-            <span
-              className={styles.legendNode}
-              style={{ borderColor: powerTypeColors.device }}
-            />
-            设备
-          </span>
-        </div>
-        <div className={styles.legendSection}>
-          <span className={styles.legendTitle}>电源路径：</span>
-          <span className={styles.legendItem}>
-            <span
-              className={styles.legendLine}
-              style={{ backgroundColor: powerPathColors.A }}
-            />
-            A路
-          </span>
-          <span className={styles.legendItem}>
-            <span
-              className={styles.legendLine}
-              style={{ backgroundColor: powerPathColors.B }}
-            />
-            B路
-          </span>
-        </div>
+        <Space wrap>
+          <Tag color="blue">A 路</Tag>
+          <Tag color="green">B 路</Tag>
+          <Tag color="success">在线</Tag>
+          <Tag color="warning">告警 / 延迟</Tag>
+          <Typography.Text type="secondary">
+            点击节点查看完整上下游路径和影响范围
+          </Typography.Text>
+        </Space>
       </div>
-
-      {/* 图形区域 */}
-      <div className={styles.graphWrapper}>
-        {loading ? (
-          <div className={styles.loadingWrapper}>
-            <Spin size="large" tip="加载拓扑数据中..." />
-          </div>
-        ) : nodes.length === 0 ? (
-          <Empty description="暂无电源拓扑数据" style={{ padding: 100 }} />
-        ) : (
-          <div
-            ref={containerRef}
-            className={styles.graphContainer}
-            style={{ opacity: graphReady ? 1 : 0.3 }}
-          />
-        )}
+      <div className={styles.powerLayers}>
+        {nodeTypes.map((layer, layerIndex) => {
+          const items = visibleNodes.filter((node) => node.type === layer.type);
+          if (!items.length) return null;
+          return (
+            <div className={styles.powerLayer} key={layer.type}>
+              <div className={styles.layerLabel}>
+                {layer.icon}
+                {layer.label}
+              </div>
+              <div className={styles.layerNodes}>
+                {items.map((node) => {
+                  const incomingPaths = links
+                    .filter((link) => link.target === node.id)
+                    .map((link) => link.powerPath);
+                  const loadPercent = node.capacity
+                    ? Math.round(((node.load || 0) / node.capacity) * 100)
+                    : undefined;
+                  return (
+                    <button
+                      type="button"
+                      key={node.id}
+                      className={`${styles.powerNode} ${selectedId === node.id ? styles.selectedNode : ''} ${node.status !== 'online' ? styles.warningNode : ''}`}
+                      onClick={() => onSelect(node)}
+                    >
+                      <span className={styles.nodeTitle}>{node.name}</span>
+                      <span>
+                        {incomingPaths.map((path) => (
+                          <Tag
+                            key={path}
+                            color={path === 'A' ? 'blue' : 'green'}
+                          >
+                            {path}
+                          </Tag>
+                        ))}
+                      </span>
+                      <small>
+                        {loadPercent === undefined
+                          ? node.assetCode
+                          : node.load === undefined
+                            ? `额定 ${node.capacity} W`
+                            : `${node.load} W / ${loadPercent}%`}
+                      </small>
+                    </button>
+                  );
+                })}
+              </div>
+              {layerIndex < nodeTypes.length - 1 && (
+                <ArrowDown
+                  className={styles.layerArrow}
+                  size={18}
+                  aria-hidden
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className={styles.linkLedger}>
+        <Typography.Title level={5}>链路台账</Typography.Title>
+        <div className={styles.linkList}>
+          {links
+            .filter((link) => !pathFilter || link.powerPath === pathFilter)
+            .map((link) => (
+              <button
+                key={link.id}
+                type="button"
+                onClick={() => {
+                  const target = nodeById.get(link.target);
+                  if (target) onSelect(target);
+                }}
+              >
+                <Tag color={link.powerPath === 'A' ? 'blue' : 'green'}>
+                  {link.powerPath}
+                </Tag>
+                {nodeById.get(link.source)?.name} →{' '}
+                {nodeById.get(link.target)?.name}
+                {link.status !== 'active' && <Unplug size={13} />}
+              </button>
+            ))}
+        </div>
       </div>
     </div>
   );

@@ -165,6 +165,11 @@ export default [
         name: 'access',
         component: './Access',
       },
+      {
+        path: '/system/audit',
+        name: 'audit',
+        component: './Audit',
+      },
     ],
   },
 

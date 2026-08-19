@@ -72,4 +72,5 @@ export default {
   'menu.power': '电源管理',
   'menu.system': '系统治理',
   'menu.system.access': '用户与权限',
+  'menu.system.audit': '操作审计',
 };

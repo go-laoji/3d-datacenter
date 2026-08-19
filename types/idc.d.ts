@@ -239,6 +239,8 @@ declare namespace IDC {
     connectionCount: number;
     powerConnectionCount: number;
     activeAlertCount: number;
+    openWorkOrderCount: number;
+    backupConfirmationRequired: boolean;
   }
 
   type LayoutZoneType =

@@ -276,6 +276,16 @@ const getUnmountImpact = (deviceId: string): IDC.DeviceUnmountImpact => {
         connectionCount: connectionCounts[deviceId] || 0,
         powerConnectionCount: deviceId.startsWith('dev-') ? 2 : 0,
         activeAlertCount: activeAlertDeviceIds.has(deviceId) ? 1 : 0,
+        openWorkOrderCount: ['dev-003', 'dev-005', 'dev-010'].includes(deviceId) ? 1 : 0,
+        backupConfirmationRequired: ![
+            'dev-001',
+            'dev-002',
+            'dev-006',
+            'dev-007',
+            'dev-009',
+            'dev-010',
+            'dev-011',
+        ].includes(deviceId),
     };
 };
 

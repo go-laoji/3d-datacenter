@@ -40,6 +40,7 @@ import styles from './index.less';
 const Environment: React.FC = () => {
   const [searchParams] = useSearchParams();
   const requestedMetric = searchParams.get('metric');
+  const requestedDatacenterId = searchParams.get('datacenterId');
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<any>(null);
   const [cabinetEnvs, setCabinetEnvs] = useState<IDC.CabinetEnvironment[]>([]);
@@ -60,6 +61,16 @@ const Environment: React.FC = () => {
       fetchPueTrend(selectedDc);
     }
   }, [selectedDc]);
+
+  useEffect(() => {
+    if (!requestedDatacenterId || datacenters.length === 0) return;
+    const requestedDatacenter = datacenters.find(
+      (datacenter) => datacenter.id === requestedDatacenterId,
+    );
+    if (!requestedDatacenter) return;
+    setSelectedDc(requestedDatacenter.id);
+    setSelectedCabinetDc(requestedDatacenter.name);
+  }, [datacenters, requestedDatacenterId]);
 
   useEffect(() => {
     if (loading || !['pue', 'temperature'].includes(requestedMetric || '')) {
@@ -309,13 +320,22 @@ const Environment: React.FC = () => {
 
   return (
     <PageContainer className={styles.environmentPage}>
-      {['pue', 'temperature'].includes(requestedMetric || '') && (
+      {(['pue', 'temperature'].includes(requestedMetric || '') ||
+        requestedDatacenterId) && (
         <Alert
           type="info"
           showIcon
           className={styles.metricContext}
-          message={`已从工作台定位${requestedMetric === 'pue' ? ' PUE' : '温度'}趋势`}
-          description="当前指标卡和趋势图已高亮，可切换时间范围或数据中心继续分析。"
+          message={
+            requestedMetric
+              ? `已从工作台定位${requestedMetric === 'pue' ? ' PUE' : '温度'}趋势`
+              : `已恢复站点上下文 ${requestedDatacenterId}`
+          }
+          description={
+            requestedMetric
+              ? '当前指标卡和趋势图已高亮，可切换时间范围或数据中心继续分析。'
+              : 'PUE 趋势和机柜环境列表已同步切换到目标站点。'
+          }
           action={
             <Button
               size="small"

@@ -1,6 +1,7 @@
 import { PageContainer } from '@ant-design/pro-components';
-import { history } from '@umijs/max';
+import { history, useSearchParams } from '@umijs/max';
 import {
+  Alert,
   Button,
   Card,
   Col,
@@ -87,6 +88,9 @@ const showBatchResult = (
 
 // 告警级别配置
 const AlertCenter: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const requestedDatacenterId = searchParams.get('datacenterId') || undefined;
+  const requestedAcknowledged = searchParams.get('acknowledged');
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState<IDC.AlertDetail[]>([]);
   const [stats, setStats] = useState<IDC.AlertStats | null>(null);
@@ -111,6 +115,16 @@ const AlertCenter: React.FC = () => {
     selectedRows,
   );
 
+  useEffect(() => {
+    setSelectedAck(
+      requestedAcknowledged === 'true' || requestedAcknowledged === 'false'
+        ? requestedAcknowledged
+        : '',
+    );
+    setCurrent(1);
+    setSelectedRows([]);
+  }, [requestedAcknowledged, requestedDatacenterId]);
+
   // 自动刷新（30秒轮询）
   useEffect(() => {
     refreshTimerRef.current = setInterval(() => {
@@ -119,11 +133,25 @@ const AlertCenter: React.FC = () => {
     return () => {
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     };
-  }, [current, pageSize, selectedLevel, selectedAck, selectedType]);
+  }, [
+    current,
+    pageSize,
+    requestedDatacenterId,
+    selectedLevel,
+    selectedAck,
+    selectedType,
+  ]);
 
   useEffect(() => {
     fetchData();
-  }, [current, pageSize, selectedLevel, selectedAck, selectedType]);
+  }, [
+    current,
+    pageSize,
+    requestedDatacenterId,
+    selectedLevel,
+    selectedAck,
+    selectedType,
+  ]);
 
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -135,6 +163,7 @@ const AlertCenter: React.FC = () => {
           level: selectedLevel as IDC.Alert['level'] | undefined,
           acknowledged: selectedAck === '' ? undefined : selectedAck === 'true',
           type: selectedType || undefined,
+          datacenterId: requestedDatacenterId,
         }),
         getAlertStats(),
       ]);
@@ -396,6 +425,26 @@ const AlertCenter: React.FC = () => {
         </Button>,
       ]}
     >
+      {(requestedDatacenterId || requestedAcknowledged !== null) && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={
+            requestedDatacenterId
+              ? `已恢复站点上下文 ${requestedDatacenterId}`
+              : requestedAcknowledged === 'false'
+                ? '已定位全部待确认告警'
+                : '已按确认状态筛选告警'
+          }
+          description="告警列表已按 URL 上下文筛选，可继续叠加级别和类型条件。"
+          action={
+            <Button size="small" onClick={() => history.push('/monitor/alert')}>
+              清除定位
+            </Button>
+          }
+        />
+      )}
       {/* 统计卡片 */}
       <Row gutter={16} className={styles.statsRow}>
         <Col xs={12} sm={6}>

@@ -1,4 +1,5 @@
 import { PageContainer } from '@ant-design/pro-components';
+import { useSearchParams } from '@umijs/max';
 import {
   Badge,
   Button,
@@ -27,7 +28,10 @@ import {
 } from '@/services/idc/port';
 
 const PortPage: React.FC = () => {
-  const [devices, setDevices] = useState<any[]>([]);
+  const [searchParams] = useSearchParams();
+  const requestedDeviceId =
+    searchParams.get('deviceId') || searchParams.get('device');
+  const [devices, setDevices] = useState<IDC.Device[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>();
   const [ports, setPorts] = useState<IDC.Port[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,13 +43,28 @@ const PortPage: React.FC = () => {
   const [batchForm] = Form.useForm();
 
   useEffect(() => {
+    let cancelled = false;
     getDevices({ pageSize: 1000 }).then((res) => {
-      if (res.success) {
-        // 只显示交换机类型的设备
-        setDevices(res.data || []);
+      if (!cancelled && res.success) {
+        const nextDevices = res.data || [];
+        setDevices(nextDevices);
+        if (requestedDeviceId) {
+          const requestedDevice = nextDevices.find(
+            (device) => device.id === requestedDeviceId,
+          );
+          if (requestedDevice) {
+            setSelectedDevice(requestedDevice.id);
+          } else {
+            setSelectedDevice(undefined);
+            message.warning('链接中的设备不存在或当前不可访问');
+          }
+        }
       }
     });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedDeviceId]);
 
   const loadPorts = async (deviceId: string) => {
     setLoading(true);
@@ -64,7 +83,11 @@ const PortPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedDevice) {
-      loadPorts(selectedDevice);
+      setSelectedRowKeys([]);
+      void loadPorts(selectedDevice);
+    } else {
+      setPorts([]);
+      setSelectedRowKeys([]);
     }
   }, [selectedDevice]);
 

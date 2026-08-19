@@ -25,6 +25,7 @@ import {
   EyeOff,
   LayoutGrid,
   MonitorUp,
+  RefreshCw,
   RotateCcw,
   Search,
   Server,
@@ -51,7 +52,6 @@ import {
 } from '@/components/3d/InfoDisplay';
 import {
   type ActiveTool,
-  BatchOperationPanel,
   BoxSelectOverlay,
   type MeasurementLine,
   type SelectionBox,
@@ -64,7 +64,7 @@ import { getDevices } from '@/services/idc/device';
 import { getAllDeviceTemplates } from '@/services/idc/deviceTemplate';
 import { getCabinetEnvironments } from '@/services/idc/environment';
 import { getDatacenterLayout } from '@/services/idc/layout';
-import { useBatchLoader, usePolling } from '@/utils/DataLoader';
+import { clearCache, useBatchLoader } from '@/utils/DataLoader';
 import styles from './index.less';
 
 // U位图组件
@@ -321,19 +321,6 @@ const Datacenter3DPage: React.FC = () => {
     [datacenterLayout],
   );
 
-  // 模拟并行的设备状态轮询更新 (每30秒)
-  usePolling(
-    async () => {
-      // 实际应该调用 getDeviceStatus 接口
-      return null;
-    },
-    () => {
-      // 更新状态逻辑
-      // console.log('Polling device status...');
-    },
-    { interval: 30000 },
-  );
-
   // 加载热力图温度数据
   useEffect(() => {
     if (showHeatmap) {
@@ -399,6 +386,13 @@ const Datacenter3DPage: React.FC = () => {
   const handleResetCamera = () => {
     sceneRef.current?.resetCamera();
     message.success('视角已重置');
+  };
+
+  const handleRefreshDevices = async () => {
+    if (!selectedDc) return;
+    clearCache(`devices_${selectedDc}`);
+    await reloadDevices();
+    message.success('设备数据已刷新');
   };
 
   const getTemplateName = (templateId: string) => {
@@ -505,6 +499,15 @@ const Datacenter3DPage: React.FC = () => {
                 重置
               </Button>
             </Tooltip>
+            <Tooltip title="从 Mock 数据重新加载设备状态">
+              <Button
+                icon={<RefreshCw size={16} />}
+                loading={devicesLoading}
+                onClick={handleRefreshDevices}
+              >
+                刷新数据
+              </Button>
+            </Tooltip>
           </Space>
         </div>
 
@@ -596,18 +599,27 @@ const Datacenter3DPage: React.FC = () => {
                 onClearMeasurements={() => setMeasurements([])}
               />
 
-              {/* 批量操作面板 */}
+              {/* 保留框选结果和清除入口，不展示未实现的批量操作 */}
               {selectedDeviceIds.length > 0 && (
-                <BatchOperationPanel
-                  selectedIds={selectedDeviceIds}
-                  onOperation={(op) => {
-                    message.info(
-                      `执行批量操作: ${op.type} (${op.targetIds.length}个设备)`,
-                    );
-                    // 这里实现实际的批量操作逻辑
+                <Card
+                  size="small"
+                  style={{
+                    position: 'absolute',
+                    right: 72,
+                    bottom: 16,
+                    zIndex: 10,
                   }}
-                  onClearSelection={() => setSelectedDeviceIds([])}
-                />
+                >
+                  <Space>
+                    <span>已选 {selectedDeviceIds.length} 台设备</span>
+                    <Button
+                      size="small"
+                      onClick={() => setSelectedDeviceIds([])}
+                    >
+                      清除选择
+                    </Button>
+                  </Space>
+                </Card>
               )}
 
               {/* 加载进度条 */}
@@ -902,7 +914,7 @@ const Datacenter3DPage: React.FC = () => {
                   type="primary"
                   icon={<Settings size={14} />}
                   onClick={() =>
-                    history.push(`/network/port?device=${selectedDevice.id}`)
+                    history.push(`/network/port?deviceId=${selectedDevice.id}`)
                   }
                 >
                   配置端口
@@ -914,11 +926,10 @@ const Datacenter3DPage: React.FC = () => {
                       (c) => c.id === selectedDevice.cabinetId,
                     );
                     if (cabinet && sceneRef.current) {
-                      const rowSpacing = 1.5;
-                      const colSpacing = 0.8;
-                      const x = (cabinet.column - 1) * colSpacing;
+                      const base = cabinetBasePosition(cabinet);
+                      const x = base.x;
                       const y = selectedDevice.startU * 0.0445;
-                      const z = (cabinet.row - 1) * rowSpacing;
+                      const z = base.z;
                       sceneRef.current.focusOnPosition([x, y, z]);
                     }
                   }}

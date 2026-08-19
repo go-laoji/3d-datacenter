@@ -1,5 +1,5 @@
 {
   "**/*.{js,jsx,tsx,ts,css,less,json}": [
-    "npx @biomejs/biome check --write"
+    "npx @biomejs/biome check --write --no-errors-on-unmatched"
   ]
 }

@@ -64,6 +64,31 @@
     display: block;
 }
 
+.viewToolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.jumpLabel {
+    color: #8c8c8c;
+    font-size: 12px;
+}
+
+.cabinetViewport {
+    max-height: min(62vh, 640px);
+    overflow: auto;
+    border-radius: 8px;
+    scrollbar-gutter: stable;
+}
+
+.compactViewport {
+    max-height: none;
+    overflow: visible;
+}
+
 .cabinetFront {
     display: flex;
     gap: 12px;
@@ -71,6 +96,15 @@
     border: 1px solid #d9e8f6;
     border-radius: 8px;
     padding: 16px;
+}
+
+.rearView {
+    background: linear-gradient(135deg, #f6ffed 0%, #e6f7ff 100%);
+
+    .device {
+        border-right: 3px solid currentColor;
+        border-left-width: 1px;
+    }
 }
 
 .uRuler {

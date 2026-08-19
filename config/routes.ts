@@ -170,6 +170,11 @@ export default [
         name: 'audit',
         component: './Audit',
       },
+      {
+        path: '/system/tasks',
+        name: 'tasks',
+        component: './Tasks',
+      },
     ],
   },
   {

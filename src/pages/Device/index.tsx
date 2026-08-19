@@ -13,8 +13,6 @@ import {
   Alert,
   Badge,
   Button,
-  Descriptions,
-  Drawer,
   message,
   Popconfirm,
   Space,
@@ -48,6 +46,7 @@ import {
   validateDeviceMount,
 } from '@/services/idc/device';
 import { getAllDeviceTemplates } from '@/services/idc/deviceTemplate';
+import DeviceDetailDrawer from './components/DeviceDetailDrawer';
 import DeviceUnmountModal from './components/DeviceUnmountModal';
 
 const statusConfig: Record<
@@ -1037,71 +1036,19 @@ const DevicePage: React.FC = () => {
         <ProFormTextArea name="description" label="备注" />
       </ModalForm>
 
-      {/* 详情抽屉 */}
-      <Drawer
-        title="设备详情"
+      <DeviceDetailDrawer
+        device={currentRow}
+        template={templates.find((t) => t.id === currentRow?.templateId)}
+        cabinet={cabinets.find((c) => c.id === currentRow?.cabinetId)}
         open={detailDrawerOpen}
         onClose={() => setDetailDrawerOpen(false)}
-        width={500}
-      >
-        {currentRow && (
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="设备名称">
-              <Space>
-                <Badge
-                  status={
-                    currentRow.status === 'online' ? 'success' : 'default'
-                  }
-                />
-                {currentRow.name}
-              </Space>
-            </Descriptions.Item>
-            <Descriptions.Item label="资产编码">
-              {currentRow.assetCode}
-            </Descriptions.Item>
-            <Descriptions.Item label="序列号">
-              {currentRow.serialNumber || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="设备型号">
-              {templates.find((t) => t.id === currentRow.templateId)?.name ||
-                currentRow.templateId}
-            </Descriptions.Item>
-            <Descriptions.Item label="所在机柜">
-              {cabinets.find((c) => c.id === currentRow.cabinetId)?.name ||
-                currentRow.cabinetId}
-            </Descriptions.Item>
-            <Descriptions.Item label="U位">
-              U{currentRow.startU} - U{currentRow.endU}
-            </Descriptions.Item>
-            <Descriptions.Item label="管理IP">
-              {currentRow.managementIp || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="状态">
-              <Tag color={statusConfig[currentRow.status]?.color}>
-                {statusConfig[currentRow.status]?.text}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="采购日期">
-              {currentRow.purchaseDate || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="质保到期">
-              {currentRow.warrantyExpiry || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="供应商">
-              {currentRow.vendor || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="负责人">
-              {currentRow.owner || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="所属部门">
-              {currentRow.department || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="备注">
-              {currentRow.description || '-'}
-            </Descriptions.Item>
-          </Descriptions>
-        )}
-      </Drawer>
+        onOpenPorts={() => {
+          if (!currentRow) return;
+          setDetailDrawerOpen(false);
+          setPortViewDevice(currentRow);
+          setPortViewOpen(true);
+        }}
+      />
 
       {/* 端口详情视图 */}
       <DevicePortView

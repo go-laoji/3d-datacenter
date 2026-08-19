@@ -4,3 +4,4 @@ export * from './notification';
 export * from './workOrder';
 export * from './task';
 export * from './report';
+export * from './dataHealth';

@@ -74,6 +74,7 @@ export default {
   'menu.system.access': '用户与权限',
   'menu.system.audit': '操作审计',
   'menu.system.tasks': '导入与任务',
+  'menu.system.data-health': '数据与系统健康',
   'menu.operations': '事件与协作',
   'menu.operations.notifications': '通知与值班',
   'menu.operations.work-orders': '工单与变更',

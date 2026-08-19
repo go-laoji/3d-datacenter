@@ -175,6 +175,11 @@ export default [
         name: 'tasks',
         component: './Tasks',
       },
+      {
+        path: '/system/data-health',
+        name: 'data-health',
+        component: './DataHealth',
+      },
     ],
   },
   {

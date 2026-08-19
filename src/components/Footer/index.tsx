@@ -7,15 +7,8 @@ const Footer: React.FC = () => {
       style={{
         background: 'none',
       }}
-      copyright="Powered by Go-Laoji,with Claude Sonnet 4.5"
-      links={[
-        {
-          key: 'iColor.Design',
-          title: 'iColor.Design(另一个小玩具)',
-          href: 'https://icolor.design',
-          blankTarget: true,
-        },
-      ]}
+      copyright={`© ${new Date().getFullYear()} TDDC 数字孪生运维平台`}
+      links={[]}
     />
   );
 };

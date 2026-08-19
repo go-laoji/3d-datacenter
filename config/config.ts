@@ -83,7 +83,7 @@ export default defineConfig({
    * @name layout 插件
    * @doc https://umijs.org/docs/max/layout-menu
    */
-  title: 'Ant Design Pro',
+  title: 'TDDC 数字孪生机房',
   layout: {
     locale: true,
     ...defaultSettings,
@@ -106,7 +106,7 @@ export default defineConfig({
     default: 'zh-CN',
     antd: true,
     // default true, when it is true, will use `navigator.language` overwrite default
-    baseNavigator: true,
+    baseNavigator: false,
   },
   /**
    * @name antd 插件
@@ -119,7 +119,8 @@ export default defineConfig({
       theme: {
         cssVar: true,
         token: {
-          fontFamily: 'AlibabaSans, sans-serif',
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         },
       },
     },

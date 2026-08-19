@@ -250,6 +250,58 @@ const waitTime = (time: number = 100) => {
     });
 };
 
+const getDatacenterIdByCabinet = (cabinetId: string) => {
+    if (cabinetId.startsWith('cab-bj-')) return 'dc-001';
+    if (cabinetId.startsWith('cab-sh-')) return 'dc-002';
+    if (cabinetId.startsWith('cab-sz-')) return 'dc-003';
+    if (cabinetId.startsWith('cab-cd-')) return 'dc-004';
+    return undefined;
+};
+
+const getLifecycleStatus = (device: IDC.Device): IDC.DeviceLifecycleStatus => {
+    if (device.lifecycleStatus) return device.lifecycleStatus;
+    if (device.isMounted === false) return 'archived';
+    if (device.status === 'maintenance') return 'maintenance';
+    return 'mounted';
+};
+
+const decorateDevice = (device: IDC.Device): IDC.Device => ({
+    ...device,
+    lifecycleStatus: getLifecycleStatus(device),
+    isMounted: device.isMounted !== false,
+});
+
+const getUnmountImpact = (deviceId: string): IDC.DeviceUnmountImpact => {
+    const connectionCounts: Record<string, number> = {
+        'dev-001': 3,
+        'dev-002': 6,
+        'dev-003': 3,
+        'dev-004': 1,
+        'dev-005': 2,
+        'dev-006': 2,
+        'dev-007': 1,
+        'dev-008': 1,
+        'dev-010': 1,
+    };
+    const activeAlertDeviceIds = new Set(['dev-003', 'dev-010']);
+
+    return {
+        connectionCount: connectionCounts[deviceId] || 0,
+        powerConnectionCount: deviceId.startsWith('dev-') ? 2 : 0,
+        activeAlertCount: activeAlertDeviceIds.has(deviceId) ? 1 : 0,
+        openWorkOrderCount: ['dev-003', 'dev-005', 'dev-010'].includes(deviceId) ? 1 : 0,
+        backupConfirmationRequired: ![
+            'dev-001',
+            'dev-002',
+            'dev-006',
+            'dev-007',
+            'dev-009',
+            'dev-010',
+            'dev-011',
+        ].includes(deviceId),
+    };
+};
+
 export default {
     // 获取设备列表
     'GET /api/idc/devices': async (req: Request, res: Response) => {
@@ -257,6 +309,8 @@ export default {
         const {
             current = 1,
             pageSize = 10,
+            id,
+            datacenterId,
             cabinetId,
             templateId,
             name,
@@ -264,10 +318,20 @@ export default {
             assetCode,
             managementIp,
             department,
+            isMounted,
+            lifecycleStatus,
         } = req.query;
 
         let filteredData = [...devices];
 
+        if (id) {
+            filteredData = filteredData.filter(d => d.id === String(id));
+        }
+        if (datacenterId) {
+            filteredData = filteredData.filter(
+                d => getDatacenterIdByCabinet(d.cabinetId) === String(datacenterId),
+            );
+        }
         if (cabinetId) {
             filteredData = filteredData.filter(d => d.cabinetId === cabinetId);
         }
@@ -289,10 +353,19 @@ export default {
         if (department) {
             filteredData = filteredData.filter(d => d.department === department);
         }
+        if (isMounted !== undefined && isMounted !== '') {
+            const mounted = isMounted === 'true';
+            filteredData = filteredData.filter(d => (d.isMounted !== false) === mounted);
+        }
+        if (lifecycleStatus) {
+            filteredData = filteredData.filter(
+                device => getLifecycleStatus(device) === lifecycleStatus,
+            );
+        }
 
         const start = (Number(current) - 1) * Number(pageSize);
         const end = start + Number(pageSize);
-        const paginatedData = filteredData.slice(start, end);
+        const paginatedData = filteredData.slice(start, end).map(decorateDevice);
 
         res.json({
             success: true,
@@ -306,11 +379,11 @@ export default {
     // 获取单个设备详情
     'GET /api/idc/devices/:id': async (req: Request, res: Response) => {
         await waitTime(200);
-        const { id } = req.params;
+        const id = String(req.params.id);
         const device = devices.find(d => d.id === id);
 
         if (device) {
-            res.json({ success: true, data: device });
+            res.json({ success: true, data: decorateDevice(device) });
         } else {
             res.status(404).json({ success: false, errorMessage: '设备不存在' });
         }
@@ -334,6 +407,8 @@ export default {
             endU: endUFromBody ?? body.startU + 1,
             managementIp: body.managementIp,
             status: 'online',
+            isMounted: true,
+            lifecycleStatus: 'mounted',
             purchaseDate: body.purchaseDate,
             warrantyExpiry: body.warrantyExpiry,
             vendor: body.vendor,
@@ -345,7 +420,7 @@ export default {
         };
 
         devices.push(newDevice);
-        res.json({ success: true, data: newDevice });
+        res.json({ success: true, data: decorateDevice(newDevice) });
     },
 
     'POST /api/idc/devices/validate-mount': async (req: Request, res: Response) => {
@@ -367,7 +442,9 @@ export default {
         const canPlaceAt = (candidateStart: number) => {
             const candidateEnd = candidateStart + deviceUHeight - 1;
             if (candidateEnd > uHeight) return false;
-            const existing = devices.filter(d => d.cabinetId === cabinetId);
+            const existing = devices.filter(
+                d => d.cabinetId === cabinetId && d.isMounted !== false,
+            );
             return !existing.some(d => isOverlap(candidateStart, candidateEnd, d.startU, d.endU));
         };
 
@@ -382,7 +459,9 @@ export default {
         if (startU && endU) {
             if (startU < 1) errors.push('起始U位必须大于等于1');
             if (endU > uHeight) errors.push('U位超出机柜高度');
-            const existing = devices.filter(d => d.cabinetId === cabinetId);
+            const existing = devices.filter(
+                d => d.cabinetId === cabinetId && d.isMounted !== false,
+            );
             if (existing.some(d => isOverlap(startU, endU, d.startU, d.endU))) {
                 errors.push('所选U位区间存在占用冲突');
             }
@@ -421,10 +500,30 @@ export default {
         });
     },
 
+    'POST /api/idc/devices/batch-lifecycle': async (req: Request, res: Response) => {
+        await waitTime(280);
+        const { ids, lifecycleStatus } = req.body as {
+            ids: string[];
+            lifecycleStatus: IDC.DeviceLifecycleStatus;
+        };
+        const requestedIds = new Set(ids || []);
+        let updatedCount = 0;
+        devices.forEach(device => {
+            if (!requestedIds.has(device.id)) return;
+            device.lifecycleStatus = lifecycleStatus;
+            device.isMounted = !['inventory', 'archived'].includes(lifecycleStatus);
+            if (lifecycleStatus === 'maintenance') device.status = 'maintenance';
+            if (lifecycleStatus === 'archived') device.status = 'offline';
+            device.updatedAt = new Date().toISOString();
+            updatedCount += 1;
+        });
+        res.json({ success: true, data: { updatedCount } });
+    },
+
     // 更新设备
     'PUT /api/idc/devices/:id': async (req: Request, res: Response) => {
         await waitTime(400);
-        const { id } = req.params;
+        const id = String(req.params.id);
         const body = req.body;
 
         const index = devices.findIndex(d => d.id === id);
@@ -442,14 +541,74 @@ export default {
         res.json({ success: true, data: devices[index] });
     },
 
+    // 获取设备下架影响
+    'GET /api/idc/devices/:id/unmount-impact': async (req: Request, res: Response) => {
+        await waitTime(200);
+        const id = String(req.params.id);
+        const device = devices.find(item => item.id === id);
+        if (!device) {
+            res.status(404).json({ success: false, errorMessage: '设备不存在' });
+            return;
+        }
+
+        res.json({ success: true, data: getUnmountImpact(id) });
+    },
+
+    // 设备下架（保留资产与历史记录）
+    'POST /api/idc/devices/:id/unmount': async (req: Request, res: Response) => {
+        await waitTime(300);
+        const id = String(req.params.id);
+        const { confirmDependencies = false } = req.body as {
+            confirmDependencies?: boolean;
+        };
+        const device = devices.find(item => item.id === id);
+        if (!device) {
+            res.status(404).json({ success: false, errorMessage: '设备不存在' });
+            return;
+        }
+        if (device.isMounted === false) {
+            res.status(409).json({ success: false, errorMessage: '设备已经下架' });
+            return;
+        }
+
+        const impact = getUnmountImpact(id);
+        const hasDependencies =
+            impact.connectionCount > 0 ||
+            impact.powerConnectionCount > 0 ||
+            impact.activeAlertCount > 0 ||
+            impact.openWorkOrderCount > 0;
+        if (hasDependencies && !confirmDependencies) {
+            res.status(409).json({
+                success: false,
+                errorMessage: '设备仍有关联对象，请确认影响后重试',
+                data: impact,
+            });
+            return;
+        }
+
+        device.isMounted = false;
+        device.status = 'offline';
+        device.lifecycleStatus = 'archived';
+        device.updatedAt = new Date().toISOString();
+        res.json({ success: true, data: decorateDevice(device) });
+    },
+
     // 删除设备（下架）
     'DELETE /api/idc/devices/:id': async (req: Request, res: Response) => {
         await waitTime(300);
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const index = devices.findIndex(d => d.id === id);
         if (index === -1) {
             res.status(404).json({ success: false, errorMessage: '设备不存在' });
+            return;
+        }
+
+        if (getLifecycleStatus(devices[index]) !== 'archived') {
+            res.status(409).json({
+                success: false,
+                errorMessage: '仅允许永久删除已归档资产',
+            });
             return;
         }
 
@@ -460,8 +619,10 @@ export default {
     // 获取机柜内的设备（3D视图用）
     'GET /api/idc/devices/by-cabinet/:cabinetId': async (req: Request, res: Response) => {
         await waitTime(200);
-        const { cabinetId } = req.params;
-        const cabinetDevices = devices.filter(d => d.cabinetId === cabinetId);
+        const cabinetId = String(req.params.cabinetId);
+        const cabinetDevices = devices.filter(
+            d => d.cabinetId === cabinetId && d.isMounted !== false,
+        );
 
         res.json({
             success: true,

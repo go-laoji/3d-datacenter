@@ -1,4 +1,7 @@
 import type { Request, Response } from 'express';
+import type { PortView } from '../src/services/idc/port';
+import { connectionsData } from './connection.mock';
+import { devicesData } from './device.mock';
 
 // Mock 端口数据 - 基于设备动态生成
 const generatePorts = (deviceId: string, templateId: string): IDC.Port[] => {
@@ -190,6 +193,33 @@ const deviceTemplateMap: Record<string, string> = {
     'dev-012': 'tpl-inspur-nf5280m6',
 };
 
+const normalizePortId = (id: string) => id.replace('port-dev-', 'port-');
+const decoratePort = (port: IDC.Port): PortView => {
+    const connection = connectionsData.find(item => [item.sourcePortId, item.targetPortId].includes(normalizePortId(port.id)));
+    const isSource = connection?.sourcePortId === normalizePortId(port.id);
+    const peerDeviceId = connection ? (isSource ? connection.targetDeviceId : connection.sourceDeviceId) : undefined;
+    const peerPortId = connection ? (isSource ? connection.targetPortId : connection.sourcePortId) : undefined;
+    const peer = devicesData.find(device => device.id === peerDeviceId);
+    const portSuffix = port.id.match(/(\d+)$/)?.[1]?.padStart(2, '0').slice(-2) ?? '00';
+    const learnedMacs = port.portType === 'Power' || (port.linkStatus === 'disconnected' && !connection) ? [] : [`00:1A:2B:${portSuffix}:4C:5D`];
+    return {
+        ...port,
+        linkStatus: connection ? 'connected' : port.linkStatus,
+        connectedDeviceId: peerDeviceId,
+        connectedDeviceName: peer?.name,
+        connectedPortId: peerPortId,
+        connectedPortName: peerPortId?.split('-').slice(-2).join('/').toUpperCase(),
+        connectionId: connection?.id,
+        connectionPurpose: connection?.description ?? port.connectionPurpose,
+        learnedMacs,
+        lastChangedAt: port.status === 'disabled' ? '2026-08-19 18:22:10' : '2026-08-20 09:58:12',
+        history: [
+            { id: `${port.id}-status`, action: '状态采集', operator: 'network-collector-01', occurredAt: '2026-08-20 09:58:12', detail: `${port.status} / ${port.linkStatus}` },
+            { id: `${port.id}-config`, action: '配置同步', operator: '张运维', occurredAt: '2026-08-18 14:20:00', detail: port.vlanConfig ? `${port.vlanConfig.mode} · PVID ${port.vlanConfig.pvid}` : '无 VLAN 配置' },
+        ],
+    };
+};
+
 export default {
     // 获取设备的端口列表
     'GET /api/idc/ports/by-device/:deviceId': async (req: Request, res: Response) => {
@@ -212,7 +242,7 @@ export default {
 
         res.json({
             success: true,
-            data: ports,
+            data: ports.map(decoratePort),
             total: ports.length,
         });
     },
@@ -226,7 +256,7 @@ export default {
         for (const [, ports] of portsCache) {
             const port = ports.find(p => p.id === id);
             if (port) {
-                res.json({ success: true, data: port });
+                res.json({ success: true, data: decoratePort(port) });
                 return;
             }
         }
@@ -295,7 +325,7 @@ export default {
         await waitTime(400);
         const { portIds, status } = req.body;
 
-        let updatedCount = 0;
+        const results: Array<{ portId: string; success: boolean; message: string }> = [];
 
         for (const [cacheKey, ports] of portsCache) {
             let modified = false;
@@ -306,7 +336,7 @@ export default {
                         status,
                         lastUpdated: new Date().toISOString(),
                     };
-                    updatedCount++;
+                    results.push({ portId: port.id, success: true, message: status === 'disabled' && port.linkStatus === 'connected' ? '已禁用，现有连接已中断' : '状态更新成功' });
                     modified = true;
                 }
             });
@@ -317,7 +347,8 @@ export default {
 
         res.json({
             success: true,
-            message: `成功更新 ${updatedCount} 个端口的状态`,
+            data: { results },
+            message: `成功更新 ${results.length} 个端口的状态`,
         });
     },
 

@@ -1,163 +1,101 @@
 .environmentPage {
-    :global {
-        .ant-card {
-            border-radius: 8px;
-        }
-    }
+  :global(.ant-pro-page-container-children-container) {
+    padding-block-start: 16px;
+  }
 }
 
-.overviewCard {
-    .cardValue {
-        font-size: 32px;
-        font-weight: 600;
-        line-height: 1.2;
-    }
-
-    .cardLabel {
-        color: rgba(0, 0, 0, 0.45);
-        font-size: 14px;
-        margin-top: 4px;
-    }
-
-    .statusIcon {
-        font-size: 48px;
-        opacity: 0.15;
-        position: absolute;
-        right: 24px;
-        top: 50%;
-        transform: translateY(-50%);
-    }
+.loading {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
 }
 
-.statsRow {
-    margin-bottom: 16px;
+.contextAlert {
+  margin-bottom: 12px;
 }
 
-.temperatureCard {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-
-    .ant-card-body {
-        position: relative;
-    }
-
-    .cardValue {
-        color: #fff;
-    }
-
-    .cardLabel {
-        color: rgba(255, 255, 255, 0.8);
-    }
+.metricStrip {
+  margin-bottom: 12px;
 }
 
-.humidityCard {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    color: #fff;
+.metricButton {
+  display: flex;
+  width: 100%;
+  min-height: 86px;
+  padding: 8px 16px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid #f0f0f0;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 2px;
 
-    .cardValue {
-        color: #fff;
-    }
-
-    .cardLabel {
-        color: rgba(255, 255, 255, 0.8);
-    }
+  &:focus-visible {
+    outline: 2px solid #1677ff;
+    outline-offset: -2px;
+  }
 }
 
-.powerCard {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: #fff;
-
-    .cardValue {
-        color: #fff;
-    }
-
-    .cardLabel {
-        color: rgba(255, 255, 255, 0.8);
-    }
+.activeMetric {
+  background: #e6f4ff;
+  box-shadow: inset 0 -2px #1677ff;
 }
 
-.pueCard {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    color: #fff;
-
-    .cardValue {
-        color: #fff;
-    }
-
-    .cardLabel {
-        color: rgba(255, 255, 255, 0.8);
-    }
+.metricValue {
+  color: #262626;
+  font-size: 24px;
+  line-height: 32px;
 }
 
-.chartCard {
-    margin-top: 16px;
-
-    .ant-card-head {
-        border-bottom: 1px solid #f0f0f0;
-    }
+.dangerText {
+  color: #cf1322;
 }
 
-.cabinetTable {
-    margin-top: 16px;
-
-    .statusNormal {
-        color: #52c41a;
-    }
-
-    .statusWarning {
-        color: #faad14;
-    }
-
-    .statusCritical {
-        color: #f5222d;
-    }
+.sourceLine {
+  padding: 8px 16px 0;
 }
 
-.energyStats {
-    margin-top: 16px;
-
-    .statItem {
-        text-align: center;
-        padding: 16px;
-
-        .statValue {
-            font-size: 28px;
-            font-weight: 600;
-            color: #1890ff;
-        }
-
-        .statLabel {
-            color: rgba(0, 0, 0, 0.45);
-            font-size: 14px;
-            margin-top: 8px;
-        }
-
-        .statCompare {
-            font-size: 12px;
-            margin-top: 4px;
-
-            &.positive {
-                color: #f5222d;
-            }
-
-            &.negative {
-                color: #52c41a;
-            }
-        }
-    }
+.trendCard,
+.tableCard {
+  margin-top: 12px;
 }
 
-.tempBar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.trendSummary {
+  margin-bottom: 8px;
+}
 
-    .tempValue {
-        min-width: 50px;
-        font-weight: 500;
-    }
+.anomalyCallout {
+  padding: 10px 12px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+}
 
-    .tempProgress {
-        flex: 1;
+.entityButton {
+  height: auto;
+  padding: 0;
+  font-weight: 600;
+}
+
+.anomalyRow {
+  background: #fffbe6;
+}
+
+@media (max-width: 768px) {
+  .metricButton {
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .metricValue {
+    font-size: 20px;
+  }
+
+  .trendCard {
+    :global(.ant-card-head) {
+      align-items: flex-start;
+      flex-direction: column;
     }
+  }
 }

@@ -40,6 +40,22 @@ export async function deleteDatacenter(id: string) {
     });
 }
 
+/** 获取站点归档影响范围 */
+export async function getDatacenterArchiveImpact(id: string) {
+    return request<IDC.ApiResponse<IDC.DatacenterDependencyImpact>>(
+        `/api/idc/datacenters/${id}/archive-impact`,
+        { method: 'GET' },
+    );
+}
+
+/** 归档数据中心（保留资产与历史关系） */
+export async function archiveDatacenter(id: string) {
+    return request<IDC.ApiResponse<IDC.Datacenter>>(
+        `/api/idc/datacenters/${id}/archive`,
+        { method: 'POST' },
+    );
+}
+
 /** 获取所有数据中心（下拉选择用） */
 export async function getAllDatacenters() {
     return request<IDC.ApiResponse<{ id: string; name: string; code: string }[]>>(

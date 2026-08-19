@@ -1,13 +1,5 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import {
-  ModalForm,
-  PageContainer,
-  ProFormDigit,
-  ProFormSelect,
-  ProFormText,
-  ProFormTextArea,
-  ProTable,
-} from '@ant-design/pro-components';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
 import {
   Badge,
   Button,
@@ -19,6 +11,7 @@ import {
   Popconfirm,
   Space,
   Tag,
+  Tooltip,
 } from 'antd';
 import {
   Copy,
@@ -41,7 +34,14 @@ import {
   getDeviceBrands,
   getDeviceCategories,
   getDeviceTemplates,
+  updateDeviceTemplate,
 } from '@/services/idc/deviceTemplate';
+import DeviceTemplateFormModal from './components/DeviceTemplateFormModal';
+
+interface TemplateEditorState {
+  mode: 'create' | 'edit' | 'clone';
+  template?: IDC.DeviceTemplate;
+}
 
 const categoryIcons: Record<string, React.ReactNode> = {
   switch: <Monitor size={16} style={{ color: '#1890ff' }} />,
@@ -65,17 +65,13 @@ const categoryLabels: Record<string, string> = {
 
 const DeviceTemplatePage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [_editModalOpen, setEditModalOpen] = useState(false);
+  const [editor, setEditor] = useState<TemplateEditorState>();
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [currentRow, setCurrentRow] = useState<IDC.DeviceTemplate>();
   const [categories, setCategories] = useState<
     { value: string; label: string }[]
   >([]);
   const [brands, setBrands] = useState<{ value: string; label: string }[]>([]);
-  const [portGroups, setPortGroups] = useState<Omit<IDC.PortGroup, 'id'>[]>([
-    { name: '', portType: 'RJ45', count: 1, speed: '1G' },
-  ]);
 
   useEffect(() => {
     getDeviceCategories().then((res) => {
@@ -96,6 +92,20 @@ const DeviceTemplatePage: React.FC = () => {
           {categoryIcons[record.category] || categoryIcons.other}
           <span style={{ fontWeight: 500 }}>{record.name}</span>
           {record.isBuiltin && <Tag color="blue">内置</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: '版本与引用',
+      dataIndex: 'version',
+      width: 140,
+      search: false,
+      render: (_, record) => (
+        <Space size={4} wrap>
+          <Tag color="geekblue">v{record.version ?? 1}</Tag>
+          <Tag color={record.referencedDeviceCount ? 'gold' : 'default'}>
+            {record.referencedDeviceCount ?? 0} 台引用
+          </Tag>
         </Space>
       ),
     },
@@ -178,9 +188,7 @@ const DeviceTemplatePage: React.FC = () => {
           icon={<Edit3 size={14} />}
           disabled={record.isBuiltin}
           onClick={() => {
-            setCurrentRow(record);
-            setPortGroups(record.portGroups);
-            setEditModalOpen(true);
+            setEditor({ mode: 'edit', template: record });
           }}
         >
           编辑
@@ -191,80 +199,49 @@ const DeviceTemplatePage: React.FC = () => {
           size="small"
           icon={<Copy size={14} />}
           onClick={() => {
-            setPortGroups(record.portGroups.map((pg) => ({ ...pg })));
-            setCreateModalOpen(true);
-            // 延迟设置表单值，让模态框先打开
-            setTimeout(() => {
-              message.info('已复制模板配置，请修改名称后保存');
-            }, 300);
+            setEditor({ mode: 'clone', template: record });
           }}
         >
           克隆
         </Button>,
-        <Popconfirm
+        <Tooltip
           key="delete"
-          title="确定要删除这个设备模板吗？"
-          disabled={record.isBuiltin}
-          onConfirm={async () => {
-            const res = await deleteDeviceTemplate(record.id);
-            if (res.success) {
-              message.success('删除成功');
-              actionRef.current?.reload();
-            } else {
-              message.error(res.errorMessage || '删除失败');
-            }
-          }}
+          title={
+            record.isBuiltin
+              ? '内置模板不可删除'
+              : record.referencedDeviceCount
+                ? `仍有 ${record.referencedDeviceCount} 台设备引用，请优先停用`
+                : '删除未被引用的自定义模板'
+          }
         >
-          <Button
-            type="link"
-            size="small"
-            danger
-            icon={<Trash2 size={14} />}
-            disabled={record.isBuiltin}
+          <Popconfirm
+            title="确定要删除这个设备模板吗？"
+            disabled={record.isBuiltin || Boolean(record.referencedDeviceCount)}
+            onConfirm={async () => {
+              const res = await deleteDeviceTemplate(record.id);
+              if (res.success) {
+                message.success('删除成功');
+                actionRef.current?.reload();
+              } else {
+                message.error(res.errorMessage || '删除失败');
+              }
+            }}
           >
-            删除
-          </Button>
-        </Popconfirm>,
+            <Button
+              type="link"
+              size="small"
+              danger
+              icon={<Trash2 size={14} />}
+              disabled={
+                record.isBuiltin || Boolean(record.referencedDeviceCount)
+              }
+            >
+              删除
+            </Button>
+          </Popconfirm>
+        </Tooltip>,
       ],
     },
-  ];
-
-  const addPortGroup = () => {
-    setPortGroups([
-      ...portGroups,
-      { name: '', portType: 'RJ45', count: 1, speed: '1G' },
-    ]);
-  };
-
-  const removePortGroup = (index: number) => {
-    setPortGroups(portGroups.filter((_, i) => i !== index));
-  };
-
-  const updatePortGroup = (index: number, field: string, value: any) => {
-    const newGroups = [...portGroups];
-    (newGroups[index] as any)[field] = value;
-    setPortGroups(newGroups);
-  };
-
-  const portTypeOptions = [
-    { value: 'RJ45', label: 'RJ45电口' },
-    { value: 'SFP', label: 'SFP光口' },
-    { value: 'SFP+', label: 'SFP+万兆光口' },
-    { value: 'QSFP+', label: 'QSFP+ 40G光口' },
-    { value: 'QSFP28', label: 'QSFP28 100G光口' },
-    { value: 'FC', label: 'FC光纤通道' },
-    { value: 'Console', label: 'Console控制台' },
-    { value: 'Power', label: '电源接口' },
-  ];
-
-  const speedOptions = [
-    { value: '100M', label: '100Mbps' },
-    { value: '1G', label: '1Gbps' },
-    { value: '10G', label: '10Gbps' },
-    { value: '25G', label: '25Gbps' },
-    { value: '40G', label: '40Gbps' },
-    { value: '100G', label: '100Gbps' },
-    { value: 'N/A', label: '不适用' },
   ];
 
   return (
@@ -299,189 +276,42 @@ const DeviceTemplatePage: React.FC = () => {
             key="create"
             type="primary"
             icon={<Plus size={16} />}
-            onClick={() => {
-              setPortGroups([
-                { name: '', portType: 'RJ45', count: 1, speed: '1G' },
-              ]);
-              setCreateModalOpen(true);
-            }}
+            onClick={() => setEditor({ mode: 'create' })}
           >
             新建设备模板
           </Button>,
         ]}
       />
 
-      {/* 新建模态框 */}
-      <ModalForm
-        title="新建设备模板"
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-        width={700}
-        onFinish={async (values) => {
-          const data = {
-            ...values,
-            portGroups: portGroups.filter((pg) => pg.name && pg.count > 0),
-          } as IDC.DeviceTemplateCreateParams;
-          const res = await createDeviceTemplate(data);
-          if (res.success) {
-            message.success('创建成功');
+      {editor && (
+        <DeviceTemplateFormModal
+          key={`${editor.mode}-${editor.template?.id ?? 'new'}`}
+          mode={editor.mode}
+          open
+          categories={categories}
+          template={editor.template}
+          onOpenChange={(open) => {
+            if (!open) setEditor(undefined);
+          }}
+          onSubmit={async (payload) => {
+            const response =
+              editor.mode === 'edit' && editor.template
+                ? await updateDeviceTemplate(editor.template.id, payload)
+                : await createDeviceTemplate(payload);
+            if (!response.success) return false;
+
+            message.success(
+              editor.mode === 'edit'
+                ? '更新成功'
+                : editor.mode === 'clone'
+                  ? '克隆成功'
+                  : '创建成功',
+            );
             actionRef.current?.reload();
             return true;
-          }
-          return false;
-        }}
-      >
-        <ProFormSelect
-          name="category"
-          label="设备类型"
-          options={categories}
-          rules={[{ required: true, message: '请选择设备类型' }]}
+          }}
         />
-        <ProFormText
-          name="brand"
-          label="品牌"
-          placeholder="如：华为、思科、H3C"
-          rules={[{ required: true, message: '请输入品牌' }]}
-        />
-        <ProFormText
-          name="model"
-          label="型号"
-          placeholder="如：S5735-L48T4X-A"
-          rules={[{ required: true, message: '请输入型号' }]}
-        />
-        <ProFormText
-          name="name"
-          label="模板名称"
-          placeholder="如：华为S5735-L48T4X-A"
-          rules={[{ required: true, message: '请输入模板名称' }]}
-        />
-        <ProFormDigit
-          name="uHeight"
-          label="U位高度"
-          initialValue={1}
-          min={1}
-          max={48}
-          rules={[{ required: true, message: '请输入U位高度' }]}
-        />
-        <ProFormDigit
-          name="maxPower"
-          label="最高功率(W)"
-          initialValue={0}
-          min={0}
-          max={10000}
-          fieldProps={{ addonAfter: 'W' }}
-        />
-
-        <Card
-          title="端口配置"
-          size="small"
-          style={{ marginBottom: 16 }}
-          extra={
-            <Button
-              type="link"
-              onClick={addPortGroup}
-              icon={<Plus size={14} />}
-            >
-              添加端口组
-            </Button>
-          }
-        >
-          {portGroups.map((pg, index) => (
-            <div
-              key={`${pg.portType}-${pg.name}-${index}`}
-              style={{
-                display: 'flex',
-                gap: 8,
-                marginBottom: 8,
-                alignItems: 'center',
-              }}
-            >
-              <input
-                placeholder="端口组名称"
-                value={pg.name}
-                onChange={(e) => updatePortGroup(index, 'name', e.target.value)}
-                style={{
-                  width: 120,
-                  padding: '4px 8px',
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 4,
-                }}
-              />
-              <select
-                value={pg.portType}
-                onChange={(e) =>
-                  updatePortGroup(index, 'portType', e.target.value)
-                }
-                style={{
-                  width: 130,
-                  padding: '4px 8px',
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 4,
-                }}
-              >
-                {portTypeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                placeholder="数量"
-                value={pg.count}
-                min={1}
-                onChange={(e) =>
-                  updatePortGroup(
-                    index,
-                    'count',
-                    parseInt(e.target.value, 10) || 1,
-                  )
-                }
-                style={{
-                  width: 60,
-                  padding: '4px 8px',
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 4,
-                }}
-              />
-              <select
-                value={pg.speed}
-                onChange={(e) =>
-                  updatePortGroup(index, 'speed', e.target.value)
-                }
-                style={{
-                  width: 100,
-                  padding: '4px 8px',
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 4,
-                }}
-              >
-                {speedOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              {portGroups.length > 1 && (
-                <Button
-                  type="link"
-                  danger
-                  size="small"
-                  onClick={() => removePortGroup(index)}
-                >
-                  删除
-                </Button>
-              )}
-            </div>
-          ))}
-        </Card>
-
-        <ProFormTextArea
-          name="description"
-          label="描述"
-          placeholder="请输入描述信息"
-        />
-      </ModalForm>
+      )}
 
       {/* 详情模态框 */}
       <Modal
@@ -512,6 +342,16 @@ const DeviceTemplatePage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="U位高度">
                 {currentRow.uHeight}U
+              </Descriptions.Item>
+              <Descriptions.Item label="模板版本">
+                v{currentRow.version ?? 1}
+              </Descriptions.Item>
+              <Descriptions.Item label="引用影响">
+                {currentRow.referencedDeviceCount ?? 0} 台设备 /{' '}
+                {currentRow.impactedDatacenterCount ?? 0} 个数据中心
+              </Descriptions.Item>
+              <Descriptions.Item label="最近变更" span={2}>
+                {currentRow.lastChangeSummary || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="描述" span={2}>
                 {currentRow.description || '-'}

@@ -45,6 +45,7 @@ export default [
     name: 'layout',
     icon: 'layout',
     component: './DatacenterLayout',
+    access: 'canEditDigitalTwin',
   },
   {
     path: '/cabinet3d',
@@ -154,11 +155,71 @@ export default [
       },
     ],
   },
+  {
+    path: '/system',
+    name: 'system',
+    icon: 'setting',
+    access: 'canManageSystem',
+    routes: [
+      { path: '/system', redirect: '/system/access' },
+      {
+        path: '/system/access',
+        name: 'access',
+        component: './Access',
+      },
+      {
+        path: '/system/audit',
+        name: 'audit',
+        component: './Audit',
+      },
+      {
+        path: '/system/tasks',
+        name: 'tasks',
+        component: './Tasks',
+      },
+      {
+        path: '/system/data-health',
+        name: 'data-health',
+        component: './DataHealth',
+      },
+    ],
+  },
+  {
+    path: '/operations',
+    name: 'operations',
+    icon: 'solution',
+    access: 'canOperate',
+    routes: [
+      { path: '/operations', redirect: '/operations/notifications' },
+      {
+        path: '/operations/notifications',
+        name: 'notifications',
+        component: './Notifications',
+      },
+      {
+        path: '/operations/work-orders',
+        name: 'work-orders',
+        component: './WorkOrders',
+      },
+    ],
+  },
+  {
+    path: '/reports',
+    name: 'reports',
+    icon: 'barChart',
+    component: './Reports',
+    access: 'canExport',
+  },
 
   {
     path: '/403',
     layout: false,
     component: './403',
+  },
+  {
+    path: '/mobile/ops',
+    layout: false,
+    component: './MobileOps',
   },
   {
     path: '/',

@@ -15,7 +15,7 @@ const Settings: ProLayoutProps & {
   fixedHeader: false,
   fixSiderbar: true,
   colorWeak: false,
-  title: 'AI数字孪生机房',
+  title: 'TDDC 数字孪生机房',
   pwa: true,
   logo: '/logo.svg',
   iconfontUrl: '',

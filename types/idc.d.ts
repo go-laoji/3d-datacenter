@@ -41,8 +41,23 @@ declare namespace IDC {
     description?: string;
     contact?: string; // 联系人
     phone?: string; // 联系电话
+    healthScore?: number;
+    activeAlertCount?: number;
+    deviceCount?: number;
+    powerUsagePercent?: number;
+    coolingHeadroomPercent?: number;
+    lastSyncedAt?: string;
+    archivedAt?: string;
     createdAt: string;
     updatedAt: string;
+  }
+
+  interface DatacenterDependencyImpact {
+    cabinetCount: number;
+    deviceCount: number;
+    activeAlertCount: number;
+    layoutCount: number;
+    connectionCount: number;
   }
 
   interface DatacenterCreateParams {
@@ -132,6 +147,10 @@ declare namespace IDC {
     description?: string;
     specs?: Record<string, string>; // 其他规格参数
     maxPower?: number; // 最高功率(W)
+    version?: number;
+    referencedDeviceCount?: number;
+    impactedDatacenterCount?: number;
+    lastChangeSummary?: string;
     createdAt: string;
     updatedAt: string;
   }
@@ -150,6 +169,15 @@ declare namespace IDC {
   }
 
   // ==================== 设备 ====================
+
+  /** 设备资产生命周期 */
+  type DeviceLifecycleStatus =
+    | 'inventory'
+    | 'pending_mount'
+    | 'mounted'
+    | 'maintenance'
+    | 'pending_unmount'
+    | 'archived';
 
   /** 设备实例 */
   interface Device {
@@ -171,6 +199,7 @@ declare namespace IDC {
     owner?: string; // 负责人
     department?: string; // 所属部门
     isMounted?: boolean; // 是否已上架
+    lifecycleStatus?: DeviceLifecycleStatus;
     description?: string;
     createdAt: string;
     updatedAt: string;
@@ -214,6 +243,14 @@ declare namespace IDC {
     recommendedEndU?: number;
     powerAfter?: number;
     powerRatioAfter?: number;
+  }
+
+  interface DeviceUnmountImpact {
+    connectionCount: number;
+    powerConnectionCount: number;
+    activeAlertCount: number;
+    openWorkOrderCount: number;
+    backupConfirmationRequired: boolean;
   }
 
   type LayoutZoneType =
@@ -568,6 +605,37 @@ declare namespace IDC {
     resolvedAt?: string;
     resolvedBy?: string;
     notes?: string; // 处理备注
+    workflowStatus?:
+      | 'new'
+      | 'acknowledged'
+      | 'processing'
+      | 'recovered'
+      | 'closed'
+      | 'suppressed'
+      | 'false_positive'
+      | 'reopened';
+    priority?: 'P1' | 'P2' | 'P3' | 'P4';
+    assignee?: string;
+    team?: string;
+    slaDueAt?: string;
+    escalationLevel?: number;
+    maintenanceWindow?: string;
+    relatedAlertIds?: string[];
+    workOrderId?: string;
+    notificationDeliveries?: Array<{
+      channel: string;
+      target: string;
+      status: 'delivered' | 'failed' | 'pending';
+      sentAt?: string;
+    }>;
+    timeline?: Array<{
+      id: string;
+      type: string;
+      title: string;
+      actor: string;
+      occurredAt: string;
+      detail?: string;
+    }>;
   }
 
   /** 告警统计 */
@@ -580,10 +648,19 @@ declare namespace IDC {
     unacknowledged: number;
     todayNew: number;
     avgResolveTime: number; // 平均处理时间(分钟)
+    slaBreached?: number;
+    unassigned?: number;
+    escalated?: number;
+  }
+
+  interface BatchAlertOperationResult {
+    succeededIds: string[];
+    failed: Array<{ id: string; reason: string }>;
   }
 
   /** 告警查询参数 */
   interface AlertQueryParams extends PageParams {
+    keyword?: string;
     level?: Alert['level'];
     type?: string;
     acknowledged?: boolean;
@@ -592,5 +669,7 @@ declare namespace IDC {
     deviceId?: string;
     cabinetId?: string;
     datacenterId?: string;
+    workflowStatus?: AlertDetail['workflowStatus'];
+    assignee?: string;
   }
 }

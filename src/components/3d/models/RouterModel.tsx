@@ -89,8 +89,11 @@ export const RouterModel: React.FC<DeviceModelProps> = ({
       </mesh>
 
       {/* 网络接口指示灯 */}
-      {[...Array(4)].map((_, i) => (
-        <mesh key={i} position={[-width / 4 + i * 0.06, 0, depth / 2 + 0.005]}>
+      {[0, 1, 2, 3].map((offset) => (
+        <mesh
+          key={`interface-${offset}`}
+          position={[-width / 4 + offset * 0.06, 0, depth / 2 + 0.005]}
+        >
           <boxGeometry args={[0.03, 0.015, 0.002]} />
           <meshStandardMaterial
             color={Math.random() > 0.3 ? '#52c41a' : '#333'}

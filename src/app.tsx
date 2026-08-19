@@ -1,23 +1,115 @@
-import { LinkOutlined } from '@ant-design/icons';
-import type { Settings as LayoutSettings } from '@ant-design/pro-components';
-import { SettingDrawer } from '@ant-design/pro-components';
-import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
-import { history, Link } from '@umijs/max';
-import React from 'react';
 import {
-  AvatarDropdown,
-  AvatarName,
-  Footer,
-  Question,
-  SelectLang,
-} from '@/components';
+  AlertOutlined,
+  ApiOutlined,
+  BankOutlined,
+  BarChartOutlined,
+  DashboardOutlined,
+  DeploymentUnitOutlined,
+  SettingOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons';
+import type {
+  Settings as LayoutSettings,
+  MenuDataItem,
+} from '@ant-design/pro-components';
+import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
+import { history } from '@umijs/max';
+import { AvatarDropdown, AvatarName, Footer, Question } from '@/components';
+import { GlobalFeedbackBridge } from '@/components/GlobalFeedbackBridge';
 import { currentUser as queryCurrentUser } from '@/services/ant-design-pro/api';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 import '@ant-design/v5-patch-for-react-19';
 
-const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
+
+function buildProductMenu(isAdmin: boolean): MenuDataItem[] {
+  const items: MenuDataItem[] = [
+    {
+      path: '/dashboard',
+      name: '工作台',
+      icon: <DashboardOutlined />,
+    },
+    {
+      path: '/space-assets',
+      name: '空间与资产',
+      icon: <BankOutlined />,
+      children: [
+        { path: '/resource-tree', name: '资源导航' },
+        { path: '/idc/datacenter', name: '数据中心' },
+        { path: '/idc/cabinet', name: '机柜' },
+        { path: '/idc/device', name: '设备' },
+        { path: '/idc/template', name: '设备模板' },
+      ],
+    },
+    {
+      path: '/network-workspace',
+      name: '网络与连接',
+      icon: <ApiOutlined />,
+      children: [
+        { path: '/network/connection', name: '物理连接' },
+        { path: '/network/port', name: '端口配置' },
+        { path: '/network/topology', name: '网络拓扑' },
+      ],
+    },
+    {
+      path: '/power-environment',
+      name: '动力与环境',
+      icon: <ThunderboltOutlined />,
+      children: [
+        { path: '/idc/pdu', name: 'PDU 与回路' },
+        { path: '/power', name: '电力拓扑' },
+        { path: '/monitor/environment', name: '环境监控' },
+      ],
+    },
+    {
+      path: '/event-work',
+      name: '事件与工单',
+      icon: <AlertOutlined />,
+      children: [
+        { path: '/monitor/alert', name: '告警中心' },
+        { path: '/operations/work-orders', name: '工单与变更' },
+        { path: '/operations/notifications', name: '通知与值班' },
+      ],
+    },
+    {
+      path: '/digital-twin',
+      name: '数字孪生',
+      icon: <DeploymentUnitOutlined />,
+      children: [
+        { path: '/datacenter3d', name: '数据中心 3D' },
+        ...(isAdmin ? [{ path: '/layout', name: '布局编辑器' }] : []),
+      ],
+    },
+  ];
+  if (isAdmin) {
+    items.push(
+      {
+        path: '/reports',
+        name: '运营报表',
+        icon: <BarChartOutlined />,
+      },
+      {
+        path: '/system-governance',
+        name: '系统管理',
+        icon: <SettingOutlined />,
+        children: [
+          { path: '/system/access', name: '用户与权限' },
+          { path: '/system/audit', name: '操作审计' },
+          { path: '/system/tasks', name: '导入与任务' },
+          { path: '/system/data-health', name: '数据与系统健康' },
+        ],
+      },
+    );
+  }
+  return items;
+}
+
+function redirectToLogin(): void {
+  if (history.location.pathname === loginPath) return;
+  const target = `${history.location.pathname}${history.location.search}`;
+  history.replace(`${loginPath}?redirect=${encodeURIComponent(target)}`);
+}
 
 /**
  * @see https://umijs.org/docs/api/runtime-config#getinitialstate
@@ -35,17 +127,13 @@ export async function getInitialState(): Promise<{
       });
       return msg.data;
     } catch (_error) {
-      history.push(loginPath);
+      redirectToLogin();
     }
     return undefined;
   };
   // 如果不是登录页面，执行
   const { location } = history;
-  if (
-    ![loginPath, '/user/register', '/user/register-result'].includes(
-      location.pathname,
-    )
-  ) {
+  if (location.pathname !== loginPath) {
     const currentUser = await fetchUserInfo();
     return {
       fetchUserInfo,
@@ -60,15 +148,9 @@ export async function getInitialState(): Promise<{
 }
 
 // ProLayout 支持的api https://procomponents.ant.design/components/layout
-export const layout: RunTimeLayoutConfig = ({
-  initialState,
-  setInitialState,
-}) => {
+export const layout: RunTimeLayoutConfig = ({ initialState }) => {
   return {
-    actionsRender: () => [
-      <Question key="doc" />,
-      <SelectLang key="SelectLang" />,
-    ],
+    actionsRender: () => [<Question key="help" />],
     avatarProps: {
       src: initialState?.currentUser?.avatar,
       title: <AvatarName />,
@@ -80,66 +162,22 @@ export const layout: RunTimeLayoutConfig = ({
       content: initialState?.currentUser?.name,
     },
     footerRender: () => <Footer />,
+    childrenRender: (children) => (
+      <>
+        <GlobalFeedbackBridge />
+        {children}
+      </>
+    ),
+    menuDataRender: () =>
+      buildProductMenu(initialState?.currentUser?.access === 'admin'),
     onPageChange: () => {
       const { location } = history;
       // 如果没有登录，重定向到 login
       if (!initialState?.currentUser && location.pathname !== loginPath) {
-        history.push(loginPath);
+        redirectToLogin();
       }
     },
-    bgLayoutImgList: [
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/D2LWSqNny4sAAAAAAAAAAAAAFl94AQBr',
-        left: 85,
-        bottom: 100,
-        height: '303px',
-      },
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/C2TWRpJpiC0AAAAAAAAAAAAAFl94AQBr',
-        bottom: -68,
-        right: -45,
-        height: '303px',
-      },
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/F6vSTbj8KpYAAAAAAAAAAAAAFl94AQBr',
-        bottom: 0,
-        left: 0,
-        width: '331px',
-      },
-    ],
-    links: isDev
-      ? [
-        <Link key="openapi" to="/umi/plugin/openapi" target="_blank">
-          <LinkOutlined />
-          <span>OpenAPI 文档</span>
-        </Link>,
-      ]
-      : [],
     menuHeaderRender: undefined,
-    // 自定义 403 页面
-    // unAccessible: <div>unAccessible</div>,
-    // 增加一个 loading 的状态
-    childrenRender: (children) => {
-      // if (initialState?.loading) return <PageLoading />;
-      return (
-        <>
-          {children}
-          {isDev && (
-            <SettingDrawer
-              disableUrlParams
-              enableDarkTheme
-              settings={initialState?.settings}
-              onSettingChange={(settings) => {
-                setInitialState((preInitialState) => ({
-                  ...preInitialState,
-                  settings,
-                }));
-              }}
-            />
-          )}
-        </>
-      );
-    },
     ...initialState?.settings,
   };
 };

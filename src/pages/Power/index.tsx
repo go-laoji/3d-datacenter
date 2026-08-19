@@ -1,389 +1,195 @@
 import { PageContainer } from '@ant-design/pro-components';
-import { useIntl } from '@umijs/max';
-import {
-  Card,
-  Col,
-  message,
-  Progress,
-  Row,
-  Select,
-  Space,
-  Spin,
-  Statistic,
-  Table,
-  Tag,
-  Tooltip,
-} from 'antd';
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle,
-  Server,
-  Shield,
-  TrendingDown,
-  TrendingUp,
-  Zap,
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { history, useSearchParams } from '@umijs/max';
+import { Alert, Card, message, Segmented, Select, Space, Spin } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getAllDatacenters } from '@/services/idc/datacenter';
 import {
   getPowerLoadBalance,
   getPowerRedundancy,
   getPowerTopology,
   type LoadBalanceStatus,
+  type PowerFailureSimulation,
   type PowerLink,
   type PowerNode,
   type RedundancyStatus,
+  simulatePowerFailure,
 } from '@/services/idc/power';
+import { PowerDetailDrawer } from './components/PowerDetailDrawer';
+import { PowerFailureModal } from './components/PowerFailureModal';
+import { PowerMetricStrip } from './components/PowerMetricStrip';
+import { PowerRedundancyTable } from './components/PowerRedundancyTable';
 import styles from './index.less';
 import PowerTopologyGraph from './PowerTopologyGraph';
 
-// 状态配置
-const statusConfig: Record<string, { color: string; text: string }> = {
-  online: { color: 'success', text: '在线' },
-  offline: { color: 'default', text: '离线' },
-  warning: { color: 'warning', text: '告警' },
-};
-
-// 电源冗余状态面板
-const RedundancyPanel: React.FC<{ data: RedundancyStatus | null }> = ({
-  data,
-}) => {
-  if (!data) return <Spin />;
-
-  const columns = [
-    {
-      title: '设备名称',
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string, _record: any) => (
-        <Space>
-          <Server size={14} />
-          {text}
-        </Space>
-      ),
-    },
-    {
-      title: '电源路径',
-      dataIndex: 'powerPaths',
-      key: 'powerPaths',
-      render: (paths: string[]) => (
-        <Space>
-          {paths.map((p) => (
-            <Tag key={p} color={p === 'A' ? 'blue' : 'green'}>
-              {p}路
-            </Tag>
-          ))}
-        </Space>
-      ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => (
-        <Tag color={statusConfig[status]?.color}>
-          {statusConfig[status]?.text}
-        </Tag>
-      ),
-    },
-  ];
-
-  const singlePowerColumns = [
-    ...columns,
-    {
-      title: '风险',
-      dataIndex: 'risk',
-      key: 'risk',
-      render: (_risk: string) => (
-        <Tag color="error" icon={<AlertTriangle size={12} />}>
-          单点故障风险
-        </Tag>
-      ),
-    },
-  ];
-
-  return (
-    <Row gutter={16}>
-      <Col span={12}>
-        <Card
-          title={
-            <Space>
-              <CheckCircle size={16} style={{ color: '#52c41a' }} />
-              双路电源设备
-            </Space>
-          }
-          size="small"
-        >
-          <Table
-            dataSource={data.dualPower}
-            columns={columns}
-            rowKey="id"
-            size="small"
-            pagination={false}
-          />
-        </Card>
-      </Col>
-      <Col span={12}>
-        <Card
-          title={
-            <Space>
-              <AlertTriangle size={16} style={{ color: '#faad14' }} />
-              单路电源设备 (存在风险)
-            </Space>
-          }
-          size="small"
-        >
-          <Table
-            dataSource={data.singlePower}
-            columns={singlePowerColumns}
-            rowKey="id"
-            size="small"
-            pagination={false}
-          />
-        </Card>
-      </Col>
-    </Row>
-  );
-};
-
-// 负载均衡面板
-const LoadBalancePanel: React.FC<{ data: LoadBalanceStatus | null }> = ({
-  data,
-}) => {
-  if (!data) return <Spin />;
-
-  const statusColors = {
-    balanced: '#52c41a',
-    warning: '#faad14',
-    unbalanced: '#f5222d',
-  };
-
-  const statusTexts = {
-    balanced: '负载均衡',
-    warning: '负载不均',
-    unbalanced: '严重不均',
-  };
-
-  return (
-    <Row gutter={16}>
-      <Col span={8}>
-        <Card size="small">
-          <Statistic
-            title={
-              <Space>
-                <Tag color="blue">A路</Tag>电源负载
-              </Space>
-            }
-            value={data.pathA.load}
-            suffix="W"
-            prefix={<TrendingUp size={16} style={{ color: '#1890ff' }} />}
-          />
-          <div style={{ marginTop: 8 }}>
-            <Progress
-              percent={parseInt(data.pathA.percentage, 10)}
-              strokeColor="#1890ff"
-            />
-          </div>
-        </Card>
-      </Col>
-      <Col span={8}>
-        <Card size="small">
-          <Statistic
-            title={
-              <Space>
-                <Tag color="green">B路</Tag>电源负载
-              </Space>
-            }
-            value={data.pathB.load}
-            suffix="W"
-            prefix={<TrendingDown size={16} style={{ color: '#52c41a' }} />}
-          />
-          <div style={{ marginTop: 8 }}>
-            <Progress
-              percent={parseInt(data.pathB.percentage, 10)}
-              strokeColor="#52c41a"
-            />
-          </div>
-        </Card>
-      </Col>
-      <Col span={8}>
-        <Card size="small">
-          <Statistic
-            title="负载均衡状态"
-            value={statusTexts[data.status]}
-            valueStyle={{ color: statusColors[data.status] }}
-          />
-          <div style={{ marginTop: 8 }}>
-            <Tooltip title={`A/B路负载差异率: ${data.balanceRate}`}>
-              <Tag
-                color={
-                  data.status === 'balanced'
-                    ? 'success'
-                    : data.status === 'warning'
-                      ? 'warning'
-                      : 'error'
-                }
-              >
-                差异率: {data.balanceRate}
-              </Tag>
-            </Tooltip>
-          </div>
-        </Card>
-      </Col>
-    </Row>
-  );
-};
-
-const PowerPage: React.FC = () => {
-  const intl = useIntl();
-  const [loading, setLoading] = useState(true);
+const PowerPage = () => {
+  const [searchParams] = useSearchParams();
+  const datacenterId = searchParams.get('datacenterId') || undefined;
+  const selectedNodeId = searchParams.get('nodeId') || undefined;
+  const pathFilter = (searchParams.get('path') || undefined) as
+    | 'A'
+    | 'B'
+    | undefined;
   const [datacenters, setDatacenters] = useState<
-    { id: string; name: string }[]
+    Array<{ id: string; name: string }>
   >([]);
-  const [selectedDc, setSelectedDc] = useState<string>();
-  const [topology, setTopology] = useState<{
-    nodes: PowerNode[];
-    links: PowerLink[];
-  }>({ nodes: [], links: [] });
+  const [nodes, setNodes] = useState<PowerNode[]>([]);
+  const [links, setLinks] = useState<PowerLink[]>([]);
   const [redundancy, setRedundancy] = useState<RedundancyStatus | null>(null);
   const [loadBalance, setLoadBalance] = useState<LoadBalanceStatus | null>(
     null,
   );
+  const [loading, setLoading] = useState(true);
+  const [simulation, setSimulation] = useState<PowerFailureSimulation>();
+  const [simulationLoading, setSimulationLoading] = useState(false);
+  const selectedNode = useMemo(
+    () => nodes.find((node) => node.id === selectedNodeId),
+    [nodes, selectedNodeId],
+  );
 
-  // 加载数据中心列表
+  const updateContext = useCallback(
+    (updates: Record<string, string | undefined>) => {
+      const params = new URLSearchParams(window.location.search);
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+        else params.delete(key);
+      });
+      history.replace(`/power?${params.toString()}`);
+    },
+    [],
+  );
+
   useEffect(() => {
-    getAllDatacenters().then((res) => {
-      if (res.success && res.data && res.data.length > 0) {
-        setDatacenters(res.data);
-        setSelectedDc(res.data[0].id);
-      }
+    getAllDatacenters().then((response) => {
+      const options = response.data || [];
+      setDatacenters(options);
+      if (!datacenterId && options[0])
+        updateContext({ datacenterId: options[0].id });
     });
-  }, []);
+  }, [datacenterId, updateContext]);
 
-  // 加载电源数据
   useEffect(() => {
-    if (!selectedDc) return;
+    if (!datacenterId) return;
+    setLoading(true);
+    Promise.all([
+      getPowerTopology(datacenterId),
+      getPowerRedundancy(datacenterId),
+      getPowerLoadBalance(datacenterId),
+    ])
+      .then(([topologyResult, redundancyResult, loadResult]) => {
+        setNodes(topologyResult.data?.nodes || []);
+        setLinks(topologyResult.data?.links || []);
+        setRedundancy(redundancyResult.data || null);
+        setLoadBalance(loadResult.data || null);
+      })
+      .catch(() => message.error('电源链路数据加载失败'))
+      .finally(() => setLoading(false));
+  }, [datacenterId]);
 
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [topoRes, redundancyRes, loadBalanceRes] = await Promise.all([
-          getPowerTopology(selectedDc),
-          getPowerRedundancy(selectedDc),
-          getPowerLoadBalance(selectedDc),
-        ]);
-
-        if (topoRes.success) setTopology(topoRes.data);
-        if (redundancyRes.success) setRedundancy(redundancyRes.data);
-        if (loadBalanceRes.success) setLoadBalance(loadBalanceRes.data);
-      } catch (error) {
-        console.error('Failed to fetch power data:', error);
-        message.error('获取电源数据失败，请稍后重试');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [selectedDc]);
+  const handleSimulate = async (node: PowerNode) => {
+    if (!datacenterId) return;
+    setSimulation(undefined);
+    setSimulationLoading(true);
+    try {
+      const response = await simulatePowerFailure(datacenterId, node.id);
+      if (!response.success || !response.data)
+        throw new Error(response.errorMessage);
+      setSimulation(response.data);
+    } catch (error) {
+      message.error(
+        error instanceof Error && error.message
+          ? error.message
+          : '故障影响计算失败',
+      );
+    } finally {
+      setSimulationLoading(false);
+    }
+  };
 
   return (
     <PageContainer
-      header={{
-        title: intl.formatMessage({
-          id: 'pages.power.management',
-          defaultMessage: '电源管理',
-        }),
-        subTitle: '电源拓扑、冗余状态和负载均衡监控',
-      }}
+      title="电源管理"
+      subTitle="A/B 路径、负载、冗余与单点故障预演"
     >
-      {/* 机房选择器 */}
-      <Card style={{ marginBottom: 24 }}>
-        <div className={styles.datacenterSelector}>
-          <span>选择数据中心：</span>
+      <Alert
+        className={styles.contextNotice}
+        type="info"
+        showIcon
+        message="统一电源对象模型"
+        description="市电、UPS、PDU、端口和 IT 设备共享同一条链路台账；模拟仅计算影响，不会修改设备状态。"
+      />
+      <Card size="small" className={styles.toolbar}>
+        <Space wrap>
           <Select
-            placeholder="请选择数据中心"
-            style={{ width: 250 }}
-            value={selectedDc}
-            onChange={setSelectedDc}
-            options={datacenters.map((dc) => ({
-              value: dc.id,
-              label: dc.name,
+            value={datacenterId}
+            style={{ width: 220 }}
+            placeholder="选择数据中心"
+            options={datacenters.map((item) => ({
+              value: item.id,
+              label: item.name,
             }))}
+            onChange={(value) =>
+              updateContext({ datacenterId: value, nodeId: undefined })
+            }
           />
-        </div>
+          <Segmented
+            value={pathFilter || 'all'}
+            options={[
+              { label: '全部路径', value: 'all' },
+              { label: 'A 路', value: 'A' },
+              { label: 'B 路', value: 'B' },
+            ]}
+            onChange={(value) =>
+              updateContext({
+                path: value === 'all' ? undefined : String(value),
+              })
+            }
+          />
+          <span>数据来源：{loadBalance?.source || '—'}</span>
+        </Space>
       </Card>
-
-      {loading && !topology.nodes.length ? (
-        <div style={{ textAlign: 'center', padding: 50 }}>
+      <PowerMetricStrip
+        nodes={nodes.length}
+        links={links.length}
+        redundancy={redundancy}
+        load={loadBalance}
+      />
+      {loading && !nodes.length ? (
+        <div className={styles.loading}>
           <Spin size="large" />
         </div>
       ) : (
         <>
-          {/* 统计概览 */}
-          <Row gutter={16} style={{ marginBottom: 24 }}>
-            <Col span={6}>
-              <Card size="small">
-                <Statistic
-                  title="总节点数"
-                  value={topology.nodes.length}
-                  prefix={<Zap size={16} style={{ color: '#1890ff' }} />}
-                  suffix="个"
-                />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card size="small">
-                <Statistic
-                  title="电源链路"
-                  value={topology.links.length}
-                  prefix={<Activity size={16} style={{ color: '#52c41a' }} />}
-                  suffix="条"
-                />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card size="small">
-                <Statistic
-                  title="冗余率"
-                  value={redundancy?.summary?.redundancyRate || '0%'}
-                  prefix={<Shield size={16} style={{ color: '#13c2c2' }} />}
-                />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card size="small">
-                <Statistic
-                  title="总负载"
-                  value={loadBalance?.totalLoad || 0}
-                  prefix={<Server size={16} style={{ color: '#722ed1' }} />}
-                  suffix="W"
-                />
-              </Card>
-            </Col>
-          </Row>
-
-          {/* 电源拓扑图形 */}
-          <Card title="电源拓扑" style={{ marginBottom: 24 }}>
+          <Card className={styles.topologyCard} title="供电路径拓扑">
             <PowerTopologyGraph
-              nodes={topology.nodes}
-              links={topology.links}
-              loading={loading}
+              nodes={nodes}
+              links={links}
+              selectedId={selectedNodeId}
+              pathFilter={pathFilter}
+              onSelect={(node) => updateContext({ nodeId: node.id })}
             />
           </Card>
-
-          {/* 负载均衡状态 */}
-          <Card title="负载均衡状态" style={{ marginBottom: 24 }}>
-            <LoadBalancePanel data={loadBalance} />
-          </Card>
-
-          {/* 电源冗余状态 */}
-          <Card title="电源冗余状态" style={{ marginBottom: 24 }}>
-            <RedundancyPanel data={redundancy} />
-          </Card>
+          <PowerRedundancyTable
+            data={redundancy}
+            onOpen={(node) => updateContext({ nodeId: node.id })}
+          />
         </>
       )}
+      <PowerDetailDrawer
+        node={selectedNode}
+        nodes={nodes}
+        links={links}
+        onClose={() => updateContext({ nodeId: undefined })}
+        onSimulate={(node) => void handleSimulate(node)}
+      />
+      <PowerFailureModal
+        simulation={simulation}
+        nodes={nodes}
+        loading={simulationLoading}
+        onClose={() => {
+          setSimulation(undefined);
+          setSimulationLoading(false);
+        }}
+      />
     </PageContainer>
   );
 };

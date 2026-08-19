@@ -1,211 +1,208 @@
 import type { Request, Response } from 'express';
 
-const waitTime = (time: number = 100) => {
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            resolve(true);
-        }, time);
-    });
+const wait = (delay = 80) => new Promise((resolve) => setTimeout(resolve, delay));
+const observedAt = new Date('2026-08-20T02:00:00.000Z');
+
+const thresholds = {
+  temperatureWarning: 26,
+  temperatureCritical: 28,
+  humidityLow: 35,
+  humidityHigh: 65,
+  pueTarget: 1.4,
+  pueWarning: 1.55,
+  hysteresis: 0.5,
+  durationMinutes: 10,
+  source: '环境告警规则 / ENV-TEMP-01',
+  maintenanceWindow: '每周日 02:00-03:00（Asia/Shanghai）',
 };
 
-// 模拟机柜ID列表
-const cabinetIds = ['cab-bj-001', 'cab-bj-002', 'cab-bj-003', 'cab-sh-001', 'cab-sh-002', 'cab-sz-001'];
-const cabinetNames = ['A区1排1号', 'A区1排2号', 'A区1排3号', 'B区1排1号', 'B区1排2号', 'C区1排1号'];
+const cabinets = [
+  ['cab-bj-001', 'A区1排1号', 'dc-001', '北京亦庄', 23.8, 25.2, 44.2, 'normal', 'good'],
+  ['cab-bj-002', 'A区1排2号', 'dc-001', '北京亦庄', 25.4, 26.6, 48.5, 'warning', 'good'],
+  ['cab-bj-003', 'A区1排3号', 'dc-001', '北京亦庄', 28.7, 30.1, 52.1, 'critical', 'delayed'],
+  ['cab-sh-001', 'B区1排1号', 'dc-002', '上海嘉定', 24.2, 25.3, 43.8, 'normal', 'estimated'],
+  ['cab-sh-002', 'B区1排2号', 'dc-002', '上海嘉定', null, null, null, 'unavailable', 'interrupted'],
+  ['cab-sz-001', 'C区1排1号', 'dc-003', '深圳坪山', 25.1, 26.1, 67.2, 'warning', 'invalid'],
+] as const;
 
-// 生成随机温度数据
-const generateTemperature = (base: number = 24, variance: number = 4) => {
-    return Math.round((base + (Math.random() - 0.5) * variance * 2) * 10) / 10;
+const cabinetViews = cabinets.map((item, index) => ({
+  cabinetId: item[0],
+  cabinetName: item[1],
+  datacenterId: item[2],
+  datacenterName: item[3],
+  avgTemperature: item[4],
+  maxTemperature: item[5],
+  minTemperature: item[4] === null ? null : Number((item[4] - 1.4).toFixed(1)),
+  avgHumidity: item[6],
+  status: item[7],
+  quality: item[8],
+  source: index === 3 ? '边缘网关估算' : 'Modbus / ENV-GW-01',
+  collectedAt: new Date(observedAt.getTime() - (index === 2 ? 18 : index === 4 ? 95 : 2) * 60_000).toISOString(),
+  sensorCount: 3,
+  anomalyReason:
+    item[7] === 'critical'
+      ? '持续 18 分钟超过 28℃'
+      : item[7] === 'warning'
+        ? item[6] !== null && item[6] > 65
+          ? '湿度超过 65%'
+          : '最高温度超过 26℃'
+        : item[7] === 'unavailable'
+          ? '采集链路中断 95 分钟'
+          : undefined,
+}));
+
+const rangeHours: Record<string, number> = { '24h': 24, '7d': 168, '30d': 720 };
+const stepHours: Record<string, number> = { '1h': 1, '6h': 6, '1d': 24 };
+
+const resolveSeries = (req: Request) => {
+  const range = String(req.query.range || '24h');
+  const granularity = String(req.query.granularity || (range === '24h' ? '1h' : '6h'));
+  return {
+    hours: rangeHours[range] || 24,
+    step: stepHours[granularity] || 1,
+  };
 };
 
-// 生成随机湿度数据
-const generateHumidity = (base: number = 45, variance: number = 10) => {
-    return Math.round((base + (Math.random() - 0.5) * variance * 2) * 10) / 10;
-};
-
-// Mock 环境监控数据
 export default {
-    // 获取所有机柜环境数据
-    'GET /api/idc/environment/cabinets': async (_req: Request, res: Response) => {
-        await waitTime(300);
+  'GET /api/idc/environment/thresholds': async (_req: Request, res: Response) => {
+    await wait();
+    res.json({ success: true, data: thresholds });
+  },
 
-        const data: IDC.CabinetEnvironment[] = cabinetIds.map((id, index) => {
-            const avgTemp = generateTemperature(24);
-            const maxTemp = avgTemp + Math.random() * 3;
-            const minTemp = avgTemp - Math.random() * 2;
-            const status = avgTemp > 28 ? 'critical' : avgTemp > 26 ? 'warning' : 'normal';
+  'GET /api/idc/environment/cabinets': async (req: Request, res: Response) => {
+    await wait();
+    const datacenterId = String(req.query.datacenterId || '');
+    res.json({
+      success: true,
+      data: cabinetViews.filter((item) => !datacenterId || item.datacenterId === datacenterId),
+    });
+  },
 
-            return {
-                cabinetId: id,
-                cabinetName: cabinetNames[index],
-                datacenterId: index < 3 ? 'dc-001' : index < 5 ? 'dc-002' : 'dc-003',
-                datacenterName: index < 3 ? '北京亦庄' : index < 5 ? '上海嘉定' : '深圳坪山',
-                avgTemperature: Math.round(avgTemp * 10) / 10,
-                maxTemperature: Math.round(maxTemp * 10) / 10,
-                minTemperature: Math.round(minTemp * 10) / 10,
-                avgHumidity: generateHumidity(),
-                status,
-            };
-        });
+  'GET /api/idc/environment/cabinet/:cabinetId': async (req: Request, res: Response) => {
+    await wait();
+    const cabinet = cabinetViews.find((item) => item.cabinetId === req.params.cabinetId);
+    const positions = ['front', 'rear', 'top'] as const;
+    const data = positions.map((position, index) => ({
+      id: `sensor-${req.params.cabinetId}-${position}`,
+      cabinetId: req.params.cabinetId,
+      cabinetName: cabinet?.cabinetName || '未知机柜',
+      position,
+      temperature: cabinet?.avgTemperature === null ? null : Number(((cabinet?.avgTemperature || 24) + index * 0.8).toFixed(1)),
+      humidity: cabinet?.avgHumidity === null ? null : Number(((cabinet?.avgHumidity || 45) - index * 1.2).toFixed(1)),
+      lastUpdated: cabinet?.collectedAt || observedAt.toISOString(),
+      quality: cabinet?.quality || 'invalid',
+      source: cabinet?.source || '未知数据源',
+    }));
+    res.json({ success: true, data });
+  },
 
-        res.json({ success: true, data });
-    },
+  'GET /api/idc/environment/temperature-trend': async (req: Request, res: Response) => {
+    await wait();
+    const { hours, step } = resolveSeries(req);
+    const points = Math.min(Math.floor(hours / step), 120);
+    const data = Array.from({ length: points + 1 }, (_, index) => {
+      const offset = points - index;
+      const timestamp = new Date(observedAt.getTime() - offset * step * 3_600_000);
+      const wave = Math.sin(index / 3) * 1.3;
+      const incident = index === points - 3 ? 4.8 : 0;
+      const average = Number((24 + wave + incident * 0.45).toFixed(1));
+      return {
+        timestamp: timestamp.toISOString(),
+        avgTemperature: average,
+        maxTemperature: Number((average + 1.6 + incident).toFixed(1)),
+        minTemperature: Number((average - 1.4).toFixed(1)),
+        avgHumidity: Number((47 + Math.cos(index / 4) * 5).toFixed(1)),
+        maxHumidity: Number((54 + Math.cos(index / 4) * 6).toFixed(1)),
+        power: Number((181 + Math.sin(index / 5) * 13 + incident * 1.8).toFixed(1)),
+        baseline: 24,
+        threshold: thresholds.temperatureCritical,
+        quality: index === points - 2 ? 'delayed' : 'good',
+        cabinetId: incident ? 'cab-bj-003' : undefined,
+        sensorId: incident ? 'sensor-cab-bj-003-rear' : undefined,
+      };
+    });
+    res.json({ success: true, data });
+  },
 
-    // 获取单个机柜传感器详细数据
-    'GET /api/idc/environment/cabinet/:cabinetId': async (req: Request, res: Response) => {
-        await waitTime(200);
-        const { cabinetId } = req.params;
-        const index = cabinetIds.indexOf(cabinetId);
+  'GET /api/idc/environment/pue-trend': async (req: Request, res: Response) => {
+    await wait();
+    const { hours, step } = resolveSeries(req);
+    const points = Math.min(Math.floor(hours / Math.max(step, 6)), 120);
+    const datacenterId = String(req.query.datacenterId || 'dc-001');
+    const names: Record<string, string> = { 'dc-001': '北京亦庄', 'dc-002': '上海嘉定', 'dc-003': '深圳坪山' };
+    const data = Array.from({ length: points + 1 }, (_, index) => {
+      const offsetHours = (points - index) * Math.max(step, 6);
+      const timestamp = new Date(observedAt.getTime() - offsetHours * 3_600_000);
+      const itPower = Number((172 + Math.sin(index / 4) * 12).toFixed(1));
+      const pue = Number((1.42 + Math.cos(index / 5) * 0.08 + (index === points - 4 ? 0.18 : 0)).toFixed(2));
+      return {
+        datacenterId,
+        datacenterName: names[datacenterId] || '未知数据中心',
+        date: timestamp.toISOString(),
+        pue,
+        itPower,
+        totalPower: Number((itPower * pue).toFixed(1)),
+        coolingPower: Number((itPower * (pue - 1)).toFixed(1)),
+        target: thresholds.pueTarget,
+        threshold: thresholds.pueWarning,
+        quality: index === points - 1 ? 'estimated' : 'good',
+      };
+    });
+    res.json({ success: true, data });
+  },
 
-        const sensors: IDC.EnvironmentSensor[] = [
-            {
-                id: `sensor-${cabinetId}-front`,
-                cabinetId,
-                cabinetName: cabinetNames[index] || '未知机柜',
-                position: 'front',
-                temperature: generateTemperature(23),
-                humidity: generateHumidity(45),
-                lastUpdated: new Date().toISOString(),
-            },
-            {
-                id: `sensor-${cabinetId}-rear`,
-                cabinetId,
-                cabinetName: cabinetNames[index] || '未知机柜',
-                position: 'rear',
-                temperature: generateTemperature(28),
-                humidity: generateHumidity(40),
-                lastUpdated: new Date().toISOString(),
-            },
-            {
-                id: `sensor-${cabinetId}-top`,
-                cabinetId,
-                cabinetName: cabinetNames[index] || '未知机柜',
-                position: 'top',
-                temperature: generateTemperature(26),
-                humidity: generateHumidity(42),
-                lastUpdated: new Date().toISOString(),
-            },
-        ];
+  'GET /api/idc/environment/energy-stats': async (_req: Request, res: Response) => {
+    await wait();
+    res.json({ success: true, data: { totalEnergy: 125680, totalCost: 87976, avgPue: 1.42, carbonEmission: 62840, comparedLastMonth: -3.2 } });
+  },
 
-        res.json({ success: true, data: sensors });
-    },
+  'GET /api/idc/environment/power': async (req: Request, res: Response) => {
+    await wait();
+    const cabinetId = String(req.query.cabinetId || '');
+    const data = cabinetViews.filter((item) => !cabinetId || item.cabinetId === cabinetId).map((item, index) => ({
+      id: `power-${item.cabinetId}`,
+      cabinetId: item.cabinetId,
+      cabinetName: item.cabinetName,
+      datacenterId: item.datacenterId,
+      datacenterName: item.datacenterName,
+      timestamp: item.collectedAt,
+      activePower: Number((4.2 + index * 0.35).toFixed(2)),
+      apparentPower: Number((4.8 + index * 0.38).toFixed(2)),
+      powerFactor: 0.92,
+      energy: 1660 + index * 42,
+      current: 12.4 + index,
+      voltage: 220.5,
+    }));
+    res.json({ success: true, data });
+  },
 
-    // 获取温度趋势数据
-    'GET /api/idc/environment/temperature-trend': async (req: Request, res: Response) => {
-        await waitTime(300);
-        const { hours = 24 } = req.query;
-
-        const data: IDC.TemperatureTrend[] = [];
-        const now = new Date();
-
-        for (let i = Number(hours); i >= 0; i--) {
-            const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
-            // 模拟日间温度稍高
-            const hour = timestamp.getHours();
-            const baseTemp = hour >= 9 && hour <= 18 ? 25 : 23;
-
-            data.push({
-                timestamp: timestamp.toISOString(),
-                avgTemperature: generateTemperature(baseTemp, 2),
-                maxTemperature: generateTemperature(baseTemp + 3, 2),
-                minTemperature: generateTemperature(baseTemp - 2, 1),
-            });
-        }
-
-        res.json({ success: true, data });
-    },
-
-    // 获取PUE趋势数据
-    'GET /api/idc/environment/pue-trend': async (req: Request, res: Response) => {
-        await waitTime(300);
-        const { days = 30, datacenterId } = req.query;
-
-        const data: IDC.PueData[] = [];
-        const dcId = datacenterId as string || 'dc-001';
-        const dcNames: Record<string, string> = {
-            'dc-001': '北京亦庄',
-            'dc-002': '上海嘉定',
-            'dc-003': '深圳坪山',
-        };
-
-        for (let i = Number(days); i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            const itPower = 150 + Math.random() * 50;
-            const coolingPower = itPower * (0.3 + Math.random() * 0.2);
-            const totalPower = itPower + coolingPower + 20 + Math.random() * 10;
-
-            data.push({
-                datacenterId: dcId,
-                datacenterName: dcNames[dcId] || '未知数据中心',
-                date: date.toISOString().split('T')[0],
-                pue: Math.round((totalPower / itPower) * 100) / 100,
-                itPower: Math.round(itPower * 10) / 10,
-                totalPower: Math.round(totalPower * 10) / 10,
-                coolingPower: Math.round(coolingPower * 10) / 10,
-            });
-        }
-
-        res.json({ success: true, data });
-    },
-
-    // 获取能耗统计
-    'GET /api/idc/environment/energy-stats': async (_req: Request, res: Response) => {
-        await waitTime(200);
-
-        const stats: IDC.EnergyStats = {
-            totalEnergy: 125680,         // kWh
-            totalCost: 87976,            // 元
-            avgPue: 1.42,
-            carbonEmission: 62840,       // kg CO2
-            comparedLastMonth: -3.2,     // 环比下降3.2%
-        };
-
-        res.json({ success: true, data: stats });
-    },
-
-    // 获取机柜能耗数据
-    'GET /api/idc/environment/power': async (req: Request, res: Response) => {
-        await waitTime(300);
-        const { cabinetId } = req.query;
-
-        const data: IDC.PowerConsumption[] = cabinetIds
-            .filter(id => !cabinetId || id === cabinetId)
-            .map((id, index) => ({
-                id: `power-${id}`,
-                cabinetId: id,
-                cabinetName: cabinetNames[index],
-                datacenterId: index < 3 ? 'dc-001' : index < 5 ? 'dc-002' : 'dc-003',
-                datacenterName: index < 3 ? '北京亦庄' : index < 5 ? '上海嘉定' : '深圳坪山',
-                timestamp: new Date().toISOString(),
-                activePower: Math.round((3 + Math.random() * 4) * 100) / 100,
-                apparentPower: Math.round((3.5 + Math.random() * 4.5) * 100) / 100,
-                powerFactor: Math.round((0.85 + Math.random() * 0.1) * 100) / 100,
-                energy: Math.round((1500 + Math.random() * 500) * 10) / 10,
-                current: Math.round((10 + Math.random() * 5) * 10) / 10,
-                voltage: Math.round((220 + Math.random() * 5) * 10) / 10,
-            }));
-
-        res.json({ success: true, data });
-    },
-
-    // 获取环境监控概览
-    'GET /api/idc/environment/overview': async (_req: Request, res: Response) => {
-        await waitTime(200);
-
-        const overview = {
-            totalCabinets: 53,
-            normalCabinets: 48,
-            warningCabinets: 4,
-            criticalCabinets: 1,
-            avgTemperature: 24.5,
-            avgHumidity: 45.2,
-            maxTemperature: 29.8,
-            maxTemperatureCabinet: 'A区1排3号',
-            minTemperature: 21.2,
-            totalPower: 186.5,      // kW
-            avgPue: 1.42,
-        };
-
-        res.json({ success: true, data: overview });
-    },
+  'GET /api/idc/environment/overview': async (req: Request, res: Response) => {
+    await wait();
+    const datacenterId = String(req.query.datacenterId || '');
+    const scope = cabinetViews.filter((item) => !datacenterId || item.datacenterId === datacenterId);
+    const valid = scope.filter((item) => item.avgTemperature !== null);
+    const average = (values: number[]) => values.length ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)) : null;
+    const hottest = valid.toSorted((a, b) => (b.maxTemperature || 0) - (a.maxTemperature || 0))[0];
+    res.json({
+      success: true,
+      data: {
+        totalCabinets: scope.length,
+        normalCabinets: scope.filter((item) => item.status === 'normal').length,
+        warningCabinets: scope.filter((item) => item.status === 'warning').length,
+        criticalCabinets: scope.filter((item) => item.status === 'critical').length,
+        unavailableCabinets: scope.filter((item) => item.status === 'unavailable').length,
+        avgTemperature: average(valid.map((item) => item.avgTemperature as number)),
+        avgHumidity: average(valid.map((item) => item.avgHumidity as number)),
+        maxTemperature: hottest?.maxTemperature ?? null,
+        maxTemperatureCabinet: hottest?.cabinetName || '—',
+        minTemperature: valid.length ? Math.min(...valid.map((item) => item.minTemperature as number)) : null,
+        totalPower: valid.length ? Number((valid.length * 31.1).toFixed(1)) : null,
+        avgPue: valid.length ? 1.42 : null,
+        collectedAt: observedAt.toISOString(),
+        source: thresholds.source,
+        quality: scope.some((item) => item.quality !== 'good') ? 'estimated' : 'good',
+        thresholds,
+      },
+    });
+  },
 };

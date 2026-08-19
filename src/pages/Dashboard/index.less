@@ -1,59 +1,104 @@
-.statCard {
-  position: relative;
-  overflow: hidden;
-  
-  :global {
-    .ant-card-body {
-      padding: 20px 24px;
-    }
-    
-    .ant-statistic-title {
-      font-size: 14px;
-      color: #8c8c8c;
-      margin-bottom: 8px;
-    }
-    
-    .ant-statistic-content {
-      font-size: 28px;
-      font-weight: 600;
-    }
+.moduleRow {
+  margin-top: 16px;
+}
+
+.kpiCard {
+  display: flex;
+  width: 100%;
+  min-height: 148px;
+  padding: 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+
+  &:hover {
+    border-color: #91caff;
+    box-shadow: 0 6px 18px rgba(22, 119, 255, 0.12);
+    transform: translateY(-2px);
+  }
+
+  &:focus-visible {
+    outline: 3px solid rgba(22, 119, 255, 0.28);
+    outline-offset: 2px;
   }
 }
 
-.statIcon {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+.kpiHeader {
   display: flex;
+  width: 100%;
+  min-height: 26px;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  justify-content: space-between;
 }
 
-.statusGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.statusItem {
-  display: flex;
-  align-items: center;
-  padding: 12px;
-  background: #fafafa;
+.kpiIcon {
+  display: inline-flex;
+  padding: 6px;
   border-radius: 8px;
+  background: #f5f5f5;
 }
 
-.statusLabel {
-  flex: 1;
-  margin-left: 8px;
+.kpiValue {
+  margin-top: 8px;
+  font-size: 28px;
+  line-height: 1.1;
+
+  small {
+    margin-left: 4px;
+    font-size: 13px;
+    font-weight: 400;
+  }
+}
+
+.kpiTitle {
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.kpiHint {
+  margin-top: 2px;
+  color: #8c8c8c;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.critical .kpiIcon {
+  background: #fff1f0;
+  color: #cf1322;
+}
+
+.warning .kpiIcon {
+  background: #fffbe6;
+  color: #d46b08;
+}
+
+.normal .kpiIcon {
+  background: #f6ffed;
+  color: #389e0d;
+}
+
+.neutral .kpiIcon {
+  background: #f5f5f5;
   color: #595959;
 }
 
-.statusValue {
-  font-size: 24px;
-  font-weight: 600;
+@media (max-width: 767px) {
+  .kpiCard {
+    min-height: 132px;
+    padding: 12px;
+  }
+
+  .kpiValue {
+    font-size: 24px;
+  }
 }

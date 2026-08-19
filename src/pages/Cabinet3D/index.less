@@ -1,105 +1,234 @@
+.pageSurface {
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    border-radius: 10px;
+}
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #fafafa;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.filterSelect {
+    min-width: 150px;
+}
+
 .container {
     display: flex;
-    gap: 20px;
-    min-height: calc(100vh - 200px);
-    position: relative;
+    gap: 16px;
+    min-height: 620px;
+    padding: 16px;
 }
 
 .statsCard {
-    width: 280px;
-    flex-shrink: 0;
+    width: 260px;
+    flex: 0 0 260px;
+    align-self: flex-start;
 }
 
-.statsHeader {
-    h3 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 600;
-    }
-}
-
-.statItem {
-    margin-bottom: 8px;
-
-    >span:first-child {
-        display: block;
-        font-size: 12px;
-        color: #666;
-        margin-bottom: 4px;
-    }
-}
-
-.statDetail {
-    display: block;
-    font-size: 12px;
-    color: #888;
-    text-align: right;
-    margin-top: 2px;
-}
-
-.viewButtons {
-    >span {
-        display: block;
-        font-size: 12px;
-        color: #666;
-        margin-bottom: 8px;
-    }
-}
-
-.btnGroup {
+.identityBlock {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #f0f0f0;
+
+    strong {
+        color: #1f2937;
+        font-size: 16px;
+    }
+
+    span {
+        color: #8c8c8c;
+        font-size: 12px;
+    }
 }
 
-.canvasCard {
+.progressBlock {
+    margin-top: 16px;
+
+    > span {
+        color: #8c8c8c;
+        font-size: 12px;
+    }
+}
+
+.progressHeader {
+    display: flex;
+    justify-content: space-between;
+    color: #595959;
+    font-size: 13px;
+}
+
+.statGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 18px;
+
+    :global(.ant-statistic) {
+        padding: 10px;
+        background: #fafafa;
+        border-radius: 6px;
+    }
+
+    :global(.ant-statistic-title) {
+        font-size: 12px;
+    }
+
+    :global(.ant-statistic-content) {
+        font-size: 20px;
+    }
+}
+
+.freshness {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    color: #8c8c8c;
+    font-size: 12px;
+}
+
+.sceneColumn {
+    position: relative;
+    min-width: 0;
     flex: 1;
-    min-width: 600px;
 }
 
 .canvasContainer {
-    height: calc(100vh - 220px);
-    min-height: 500px;
-    background: linear-gradient(180deg, #e8edf5 0%, #d0d8e8 100%);
-    border-radius: 8px;
     position: relative;
+    height: clamp(580px, 68vh, 780px);
     overflow: hidden;
+    background: linear-gradient(180deg, #edf2f7 0%, #dce5ef 100%);
+    border-radius: 8px;
 }
 
 .hint {
     position: absolute;
     bottom: 16px;
     left: 50%;
+    max-width: calc(100% - 40px);
+    padding: 6px 14px;
     transform: translateX(-50%);
-    background: rgba(255, 255, 255, 0.95);
-    color: #666;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+    color: #667085;
     font-size: 12px;
-    padding: 6px 16px;
-    border-radius: 20px;
+    text-align: center;
     pointer-events: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.emptyFilter {
+    padding-top: 190px;
 }
 
 .devicePanel {
     position: absolute;
-    top: 20px;
-    right: 20px;
-    width: 320px;
+    top: 16px;
+    right: 16px;
     z-index: 10;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    max-height: calc(100vh - 260px);
+    width: min(360px, calc(100% - 32px));
+    max-height: calc(100% - 80px);
     overflow-y: auto;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
 }
 
-.device3DPreview {
-    height: 180px;
-    background: linear-gradient(180deg, #f0f4f8 0%, #e2e8f0 100%);
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 8px;
-}
-
-.deviceTitle {
+.portSummary {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.portList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.portItem {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #fafafa;
+    border-radius: 5px;
+    font-size: 12px;
+
+    small {
+        margin-left: auto;
+        color: #8c8c8c;
+    }
+}
+
+.deviceActions {
+    margin-top: 14px;
+}
+
+.pageLoading {
+    display: flex;
+    min-height: 420px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: #667085;
+}
+
+.errorAlert {
+    margin-bottom: 16px;
+}
+
+@media (max-width: 1100px) {
+    .toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .container {
+        flex-direction: column;
+    }
+
+    .statsCard {
+        width: 100%;
+        flex-basis: auto;
+    }
+
+    .statGrid {
+        grid-template-columns: repeat(5, minmax(100px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .toolbar,
+    .container {
+        padding: 10px;
+    }
+
+    .statGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .filterSelect {
+        width: 100%;
+    }
+
+    .canvasContainer {
+        height: 560px;
+    }
+
+    .devicePanel {
+        top: auto;
+        bottom: 48px;
+        max-height: 54%;
+    }
 }

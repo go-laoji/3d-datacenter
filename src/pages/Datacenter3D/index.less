@@ -17,6 +17,35 @@
     gap: 12px;
 }
 
+.toolbarGroup {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.datacenterSelect {
+    min-width: 220px;
+}
+
+.deviceSearch {
+    min-width: 250px;
+}
+
+.compactSelect {
+    min-width: 124px;
+}
+
+.bookmarkSelect {
+    min-width: 150px;
+    max-width: 230px;
+}
+
+.controlLabel {
+    color: #595959;
+    font-size: 13px;
+}
+
 .stats {
     display: flex;
     gap: 24px;
@@ -34,10 +63,59 @@
     font-size: 13px;
 }
 
+.capacityStat {
+    display: grid;
+    grid-template-columns: auto 84px auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 150px;
+    color: #595959;
+    font-size: 13px;
+
+    strong {
+        color: #262626;
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+.freshness {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    color: #8c8c8c;
+    font-size: 12px;
+}
+
 .canvasContainer {
-    height: 600px;
+    height: clamp(520px, 64vh, 760px);
     background: linear-gradient(180deg, #e8eef5 0%, #d0dae5 50%, #c5d0dc 100%);
     position: relative;
+}
+
+.emptyScene {
+    padding-top: 160px;
+}
+
+.sceneModeBadge {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 10;
+}
+
+.heatmapLegend {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 10;
+}
+
+.selectionSummary {
+    position: absolute;
+    right: 72px;
+    bottom: 16px;
+    z-index: 10;
 }
 
 .loading {
@@ -45,6 +123,11 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: #595959;
 
     :global {
         .ant-spin-text {
@@ -61,20 +144,21 @@
     text-align: center;
 }
 
-.deviceItem {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    margin-bottom: 8px;
-    background: #fafafa;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
+.errorAlert {
+    margin-bottom: 16px;
+}
 
-    &:hover {
-        background: #e6f7ff;
-    }
+.detailCard {
+    margin-top: 16px;
+}
+
+.drawerActions {
+    margin-top: 16px;
+}
+
+.progressCaption {
+    color: #8c8c8c;
+    font-size: 12px;
 }
 
 .connectionItem {
@@ -98,6 +182,20 @@
     padding: 8px;
     background: #f9f9f9;
     border-radius: 6px;
+    border: 0;
+    margin: 0;
+}
+
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .uSlot {
@@ -109,6 +207,9 @@
     border: 1px solid #e8e8e8;
     border-radius: 3px;
     font-size: 11px;
+    width: 100%;
+    color: inherit;
+    text-align: left;
     cursor: default;
     transition: all 0.2s;
 
@@ -119,6 +220,15 @@
             transform: translateX(4px);
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
         }
+    }
+
+    &:disabled {
+        opacity: 1;
+    }
+
+    &:focus-visible {
+        outline: 2px solid #1677ff;
+        outline-offset: 1px;
     }
 }
 
@@ -139,71 +249,54 @@
     padding-left: 8px;
 }
 
-/* 端口面板样式 */
-.portPanel {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
+@media (max-width: 1200px) {
+    .toolbar {
+        align-items: flex-start;
+    }
 
-.portGroup {
-    background: #f9f9f9;
-    border-radius: 6px;
-    padding: 8px;
-}
+    .toolbarGroup {
+        width: 100%;
+    }
 
-.portGroupHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    font-size: 12px;
-    color: #595959;
-}
-
-.portGrid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.port {
-    width: 20px;
-    height: 14px;
-    background: #3d3d3d;
-    border-radius: 2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    &:hover {
-        transform: scale(1.2);
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    .freshness {
+        width: 100%;
+        margin-left: 0;
     }
 }
 
-.portIndicator {
-    width: 4px;
-    height: 4px;
-    background: #52c41a;
-    border-radius: 50%;
-}
-
-/* 搜索结果高亮动画 */
-@keyframes highlight-pulse {
-
-    0%,
-    100% {
-        box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.5);
+@media (max-width: 768px) {
+    .toolbar,
+    .stats {
+        padding: 10px 12px;
     }
 
-    50% {
-        box-shadow: 0 0 0 8px rgba(82, 196, 26, 0);
+    .toolbarGroup > * {
+        flex: 1 1 140px;
     }
-}
 
-.highlighted {
-    animation: highlight-pulse 1s ease-in-out infinite;
+    .datacenterSelect,
+    .deviceSearch,
+    .bookmarkSelect,
+    .compactSelect {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+    }
+
+    .stats {
+        gap: 12px 18px;
+    }
+
+    .capacityStat {
+        min-width: 135px;
+        grid-template-columns: auto 64px auto;
+    }
+
+    .canvasContainer {
+        height: 520px;
+    }
+
+    .hint {
+        text-align: left;
+    }
 }

@@ -404,7 +404,9 @@ export const InstancedDeviceRenderer: React.FC<
   // 设备ID -> Device对象映射
   const deviceMap = useMemo(() => {
     const map = new Map<string, IDC.Device>();
-    devices.forEach((device) => map.set(device.id, device));
+    devices.forEach((device) => {
+      map.set(device.id, device);
+    });
     return map;
   }, [devices]);
 

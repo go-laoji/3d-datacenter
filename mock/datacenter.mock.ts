@@ -15,6 +15,12 @@ let datacenters: IDC.Datacenter[] = [
         description: '一级数据中心，承载核心业务系统',
         contact: '张运维',
         phone: '13800138001',
+        healthScore: 92,
+        activeAlertCount: 2,
+        deviceCount: 168,
+        powerUsagePercent: 72,
+        coolingHeadroomPercent: 31,
+        lastSyncedAt: '2026-08-20T00:55:00+08:00',
         createdAt: '2023-01-15T08:00:00Z',
         updatedAt: '2024-12-01T10:30:00Z',
     },
@@ -30,6 +36,12 @@ let datacenters: IDC.Datacenter[] = [
         description: '二级数据中心，承载备份和测试环境',
         contact: '李运维',
         phone: '13900139002',
+        healthScore: 88,
+        activeAlertCount: 1,
+        deviceCount: 126,
+        powerUsagePercent: 68,
+        coolingHeadroomPercent: 38,
+        lastSyncedAt: '2026-08-20T00:54:00+08:00',
         createdAt: '2023-06-20T09:00:00Z',
         updatedAt: '2024-11-15T14:20:00Z',
     },
@@ -45,6 +57,12 @@ let datacenters: IDC.Datacenter[] = [
         description: '华南区域核心数据中心',
         contact: '王运维',
         phone: '13700137003',
+        healthScore: 96,
+        activeAlertCount: 0,
+        deviceCount: 142,
+        powerUsagePercent: 63,
+        coolingHeadroomPercent: 42,
+        lastSyncedAt: '2026-08-20T00:53:00+08:00',
         createdAt: '2023-03-10T10:00:00Z',
         updatedAt: '2024-10-20T16:45:00Z',
     },
@@ -60,6 +78,12 @@ let datacenters: IDC.Datacenter[] = [
         description: '西南区域数据中心，扩容中',
         contact: '赵运维',
         phone: '13600136004',
+        healthScore: 76,
+        activeAlertCount: 3,
+        deviceCount: 54,
+        powerUsagePercent: 41,
+        coolingHeadroomPercent: 56,
+        lastSyncedAt: '2026-08-20T00:48:00+08:00',
         createdAt: '2024-01-08T11:00:00Z',
         updatedAt: '2024-12-05T09:15:00Z',
     },
@@ -71,6 +95,13 @@ const waitTime = (time: number = 100) => {
             resolve(true);
         }, time);
     });
+};
+
+const dependencyImpacts: Record<string, IDC.DatacenterDependencyImpact> = {
+    'dc-001': { cabinetCount: 20, deviceCount: 6, activeAlertCount: 2, layoutCount: 1, connectionCount: 18 },
+    'dc-002': { cabinetCount: 15, deviceCount: 4, activeAlertCount: 1, layoutCount: 1, connectionCount: 12 },
+    'dc-003': { cabinetCount: 18, deviceCount: 2, activeAlertCount: 0, layoutCount: 1, connectionCount: 8 },
+    'dc-004': { cabinetCount: 12, deviceCount: 0, activeAlertCount: 0, layoutCount: 1, connectionCount: 0 },
 };
 
 export default {
@@ -113,6 +144,43 @@ export default {
         });
     },
 
+    'GET /api/idc/datacenters/:id/archive-impact': async (req: Request, res: Response) => {
+        await waitTime(180);
+        const id = String(req.params.id);
+        const datacenter = datacenters.find(d => d.id === id);
+        if (!datacenter) {
+            res.status(404).json({ success: false, errorMessage: '数据中心不存在' });
+            return;
+        }
+        res.json({
+            success: true,
+            data: dependencyImpacts[id] || {
+                cabinetCount: 0,
+                deviceCount: 0,
+                activeAlertCount: 0,
+                layoutCount: 0,
+                connectionCount: 0,
+            },
+        });
+    },
+
+    'POST /api/idc/datacenters/:id/archive': async (req: Request, res: Response) => {
+        await waitTime(350);
+        const id = String(req.params.id);
+        const index = datacenters.findIndex(d => d.id === id);
+        if (index === -1) {
+            res.status(404).json({ success: false, errorMessage: '数据中心不存在' });
+            return;
+        }
+        datacenters[index] = {
+            ...datacenters[index],
+            status: 'offline',
+            archivedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        res.json({ success: true, data: datacenters[index] });
+    },
+
     // 获取单个数据中心
     'GET /api/idc/datacenters/:id': async (req: Request, res: Response) => {
         await waitTime(200);
@@ -143,6 +211,12 @@ export default {
             description: body.description,
             contact: body.contact,
             phone: body.phone,
+            healthScore: 100,
+            activeAlertCount: 0,
+            deviceCount: 0,
+            powerUsagePercent: 0,
+            coolingHeadroomPercent: 100,
+            lastSyncedAt: new Date().toISOString(),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };

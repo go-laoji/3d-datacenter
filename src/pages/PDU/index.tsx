@@ -1,39 +1,18 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { history, useIntl } from '@umijs/max';
 import {
-  ModalForm,
-  PageContainer,
-  ProFormDigit,
-  ProFormSelect,
-  ProFormText,
-  ProTable,
-} from '@ant-design/pro-components';
-import { useIntl } from '@umijs/max';
-import {
-  Badge,
   Button,
-  Card,
-  Col,
-  Descriptions,
-  Drawer,
+  Dropdown,
+  Modal,
   message,
-  Popconfirm,
   Progress,
-  Row,
   Space,
-  Statistic,
   Tag,
+  Typography,
 } from 'antd';
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle,
-  Edit3,
-  Eye,
-  Plus,
-  Trash2,
-  Zap,
-} from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Ellipsis, Eye, Plus, Zap } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getCabinets } from '@/services/idc/cabinet';
 import {
   createPDUDevice,
@@ -41,216 +20,216 @@ import {
   getPDUDevices,
   getPDUTemplates,
   type PDUDevice,
+  type PDUTemplate,
   updatePDUDevice,
 } from '@/services/idc/pdu';
+import PDUDetailDrawer from './components/PDUDetailDrawer';
+import PDUFormModal, { type PDUFormValues } from './components/PDUFormModal';
+import PDUMetricStrip from './components/PDUMetricStrip';
+import { getLoadPercent, getLoadTone, summarizePDUs } from './pduPresentation';
 
-const statusConfig: Record<
-  string,
-  { color: string; text: string; icon: React.ReactNode }
-> = {
-  online: { color: 'success', text: '在线', icon: <CheckCircle size={14} /> },
-  offline: { color: 'default', text: '离线', icon: <Activity size={14} /> },
-  warning: {
-    color: 'warning',
-    text: '告警',
-    icon: <AlertTriangle size={14} />,
-  },
-  error: { color: 'error', text: '故障', icon: <AlertTriangle size={14} /> },
-};
-
-// 负载状态颜色
-const getLoadColor = (percent: number) => {
-  if (percent < 60) return '#52c41a';
-  if (percent < 80) return '#faad14';
-  return '#f5222d';
-};
-
-// 负载状态文本
-const getLoadStatus = (percent: number) => {
-  if (percent < 60) return { text: '正常', color: 'success' };
-  if (percent < 80) return { text: '中等', color: 'warning' };
-  return { text: '高负载', color: 'error' };
-};
+const statusConfig = {
+  online: { color: 'success', text: '在线' },
+  offline: { color: 'default', text: '离线' },
+  warning: { color: 'warning', text: '告警' },
+  error: { color: 'error', text: '故障' },
+} as const;
 
 const PDUPage: React.FC = () => {
   const intl = useIntl();
   const actionRef = useRef<ActionType>(null);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
-  const [currentRow, setCurrentRow] = useState<PDUDevice>();
-  const [_templates, setTemplates] = useState<any[]>([]);
-  const [cabinets, setCabinets] = useState<any[]>([]);
-  const [pduStats, setPduStats] = useState({
-    total: 0,
-    pathA: 0,
-    pathB: 0,
-    avgLoad: 0,
-    highLoad: 0,
-  });
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [formOpen, setFormOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [current, setCurrent] = useState<PDUDevice>();
+  const [templates, setTemplates] = useState<PDUTemplate[]>([]);
+  const [cabinets, setCabinets] = useState<IDC.Cabinet[]>([]);
+  const [allDevices, setAllDevices] = useState<PDUDevice[]>([]);
+
+  const loadReferenceData = async () => {
+    const [templateResult, cabinetResult, deviceResult] = await Promise.all([
+      getPDUTemplates(),
+      getCabinets({ pageSize: 1000 }),
+      getPDUDevices(),
+    ]);
+    if (templateResult.success) setTemplates(templateResult.data ?? []);
+    if (cabinetResult.success) setCabinets(cabinetResult.data ?? []);
+    if (deviceResult.success) {
+      const devices = deviceResult.data ?? [];
+      setAllDevices(devices);
+      const requestedId = new URLSearchParams(history.location.search).get(
+        'pduId',
+      );
+      const requested = devices.find((device) => device.id === requestedId);
+      if (requestedId && requested) {
+        setCurrent(requested);
+        setDetailOpen(true);
+      } else if (requestedId) {
+        message.warning('链接中的 PDU 不存在，已显示全部设备');
+      }
+    }
+  };
 
   useEffect(() => {
-    getPDUTemplates().then((res) => {
-      if (res.success) setTemplates(res.data || []);
-    });
-    getCabinets({ pageSize: 1000 }).then((res) => {
-      if (res.success) setCabinets(res.data || []);
-    });
+    void loadReferenceData();
   }, []);
 
-  // 计算统计数据
-  const updateStats = (devices: PDUDevice[]) => {
-    const pathA = devices.filter((d) => d.pduData?.powerPath === 'A').length;
-    const pathB = devices.filter((d) => d.pduData?.powerPath === 'B').length;
-    const loads = devices.map((d) => {
-      const max = d.pduData?.maxLoad || 1;
-      const current = d.pduData?.currentLoad || 0;
-      return (current / max) * 100;
-    });
-    const avgLoad =
-      loads.length > 0 ? loads.reduce((a, b) => a + b, 0) / loads.length : 0;
-    const highLoad = loads.filter((l) => l >= 80).length;
+  const stats = useMemo(() => summarizePDUs(allDevices), [allDevices]);
+  const cabinetMap = useMemo(
+    () => new Map(cabinets.map((cabinet) => [cabinet.id, cabinet])),
+    [cabinets],
+  );
 
-    setPduStats({
-      total: devices.length,
-      pathA,
-      pathB,
-      avgLoad: Math.round(avgLoad),
-      highLoad,
+  const openDetails = (record: PDUDevice) => {
+    setCurrent(record);
+    setDetailOpen(true);
+    history.replace(`${history.location.pathname}?pduId=${record.id}`);
+  };
+
+  const reload = async () => {
+    await Promise.all([actionRef.current?.reload(), loadReferenceData()]);
+  };
+
+  const remove = (record: PDUDevice) => {
+    const connections = record.outlets.filter((outlet) => outlet.deviceId);
+    Modal.confirm({
+      title: `删除 ${record.name}？`,
+      okText: '确认删除',
+      okButtonProps: { danger: true, disabled: connections.length > 0 },
+      content: connections.length
+        ? `当前仍连接 ${connections.length} 台设备，请先迁移插座连接后再删除。`
+        : '该操作会移除 PDU 及其历史演示数据，无法撤销。',
+      onOk: async () => {
+        const result = await deletePDUDevice(record.id);
+        if (result.success) {
+          message.success('PDU 已删除');
+          await reload();
+        }
+      },
     });
   };
 
   const columns: ProColumns<PDUDevice>[] = [
     {
-      title: 'PDU名称',
-      dataIndex: 'name',
-      ellipsis: true,
+      title: 'PDU',
+      dataIndex: 'keyword',
       render: (_, record) => (
-        <Space>
-          <Zap
-            size={16}
-            style={{
-              color: record.pduData?.powerPath === 'A' ? '#1890ff' : '#52c41a',
-            }}
-          />
-          <span style={{ fontWeight: 500 }}>{record.name}</span>
-        </Space>
+        <Button
+          type="link"
+          onClick={() => openDetails(record)}
+          style={{ paddingInline: 0 }}
+        >
+          <Space>
+            <Zap size={15} />
+            {record.name}
+          </Space>
+        </Button>
       ),
     },
     {
       title: '电源路径',
       dataIndex: ['pduData', 'powerPath'],
-      width: 100,
+      width: 110,
       valueType: 'select',
-      valueEnum: {
-        A: { text: 'A路电源', status: 'Processing' },
-        B: { text: 'B路电源', status: 'Success' },
-      },
+      valueEnum: { A: { text: 'A 路' }, B: { text: 'B 路' } },
       render: (_, record) => (
-        <Tag color={record.pduData?.powerPath === 'A' ? 'blue' : 'green'}>
-          {record.pduData?.powerPath === 'A' ? 'A路' : 'B路'}
+        <Tag color={record.pduData.powerPath === 'A' ? 'blue' : 'green'}>
+          {record.pduData.powerPath} 路 · {record.pduData.phase}
         </Tag>
       ),
     },
     {
       title: '所在机柜',
       dataIndex: 'cabinetId',
-      width: 150,
+      width: 160,
       valueType: 'select',
       fieldProps: {
-        options: cabinets.map((c) => ({ value: c.id, label: c.name })),
+        options: cabinets.map((cabinet) => ({
+          value: cabinet.id,
+          label: cabinet.name,
+        })),
         showSearch: true,
       },
-      render: (_, record) => {
-        const cab = cabinets.find((c) => c.id === record.cabinetId);
-        return cab ? (
-          <Button
-            type="link"
-            size="small"
-            onClick={() => {
-              // 跳转到机柜管理页面
-              window.location.hash = `/cabinet?id=${record.cabinetId}`;
-            }}
-          >
-            {cab.name}
-          </Button>
-        ) : (
-          record.cabinetId
-        );
+      render: (_, record) => (
+        <Button
+          type="link"
+          size="small"
+          onClick={() =>
+            history.push(`/idc/cabinet?cabinetId=${record.cabinetId}`)
+          }
+        >
+          {cabinetMap.get(record.cabinetId)?.name ?? record.cabinetId}
+        </Button>
+      ),
+    },
+    {
+      title: '负载',
+      dataIndex: 'risk',
+      width: 210,
+      valueType: 'select',
+      valueEnum: {
+        highLoad: { text: '只看高负载' },
+        singlePath: { text: '只看单路接入' },
+        stale: { text: '只看数据延迟' },
       },
-    },
-    {
-      title: 'U位',
-      dataIndex: 'startU',
-      width: 80,
-      search: false,
-      render: (_, record) =>
-        record.startU === record.endU
-          ? `U${record.startU}`
-          : `U${record.startU}-${record.endU}`,
-    },
-    {
-      title: '输出端口',
-      dataIndex: ['pduData', 'outputPorts'],
-      width: 90,
-      search: false,
-      render: (_, record) => `${record.pduData?.outputPorts || 0}口`,
-    },
-    {
-      title: '负载情况',
-      dataIndex: 'load',
-      width: 200,
-      search: false,
       render: (_, record) => {
-        const max = record.pduData?.maxLoad || 1;
-        const current = record.pduData?.currentLoad || 0;
-        const percent = Math.round((current / max) * 100);
-        const status = getLoadStatus(percent);
+        const percent = getLoadPercent(record);
+        const tone = getLoadTone(percent);
         return (
-          <Space direction="vertical" size={0} style={{ width: '100%' }}>
-            <Progress
-              percent={percent}
-              size="small"
-              strokeColor={getLoadColor(percent)}
-              format={() => `${current}W / ${max}W`}
-            />
-            <Tag color={status.color} style={{ fontSize: 10 }}>
-              {status.text}
-            </Tag>
-          </Space>
+          <Progress
+            percent={percent}
+            strokeColor={tone.color}
+            size="small"
+            format={() =>
+              `${record.pduData.currentLoad}/${record.pduData.maxLoad}W`
+            }
+          />
         );
       },
+    },
+    {
+      title: '插座',
+      search: false,
+      width: 100,
+      render: (_, record) =>
+        `${record.outlets.filter((outlet) => outlet.deviceId).length} / ${record.pduData.outputPorts}`,
+    },
+    {
+      title: '采集质量',
+      search: false,
+      width: 160,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Tag color={record.metric.quality === 'good' ? 'success' : 'warning'}>
+            {record.metric.quality === 'good' ? '正常' : '延迟'}
+          </Tag>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {record.metric.collectedAt}
+          </Typography.Text>
+        </Space>
+      ),
     },
     {
       title: '状态',
       dataIndex: 'status',
       width: 100,
       valueType: 'select',
-      valueEnum: {
-        online: { text: '在线', status: 'Success' },
-        offline: { text: '离线', status: 'Default' },
-        warning: { text: '告警', status: 'Warning' },
-        error: { text: '故障', status: 'Error' },
-      },
+      valueEnum: Object.fromEntries(
+        Object.entries(statusConfig).map(([key, value]) => [
+          key,
+          { text: value.text },
+        ]),
+      ),
       render: (_, record) => (
-        <Tag
-          icon={statusConfig[record.status]?.icon}
-          color={statusConfig[record.status]?.color}
-        >
-          {statusConfig[record.status]?.text}
+        <Tag color={statusConfig[record.status].color}>
+          {statusConfig[record.status].text}
         </Tag>
       ),
     },
     {
-      title: '管理IP',
-      dataIndex: 'managementIp',
-      width: 130,
-      copyable: true,
-    },
-    {
       title: '操作',
       valueType: 'option',
-      width: 150,
+      width: 120,
       fixed: 'right',
       render: (_, record) => [
         <Button
@@ -258,121 +237,106 @@ const PDUPage: React.FC = () => {
           type="link"
           size="small"
           icon={<Eye size={14} />}
-          onClick={() => {
-            setCurrentRow(record);
-            setDetailDrawerOpen(true);
-          }}
+          onClick={() => openDetails(record)}
         >
           详情
         </Button>,
-        <Button
-          key="edit"
-          type="link"
-          size="small"
-          icon={<Edit3 size={14} />}
-          onClick={() => {
-            setCurrentRow(record);
-            setEditModalOpen(true);
+        <Dropdown
+          key="more"
+          menu={{
+            items: [
+              { key: 'edit', label: '编辑额定参数' },
+              { key: 'power', label: '电力拓扑定位' },
+              { key: 'delete', label: '删除', danger: true },
+            ],
+            onClick: ({ key }) => {
+              if (key === 'edit') {
+                setCurrent(record);
+                setFormMode('edit');
+                setFormOpen(true);
+              }
+              if (key === 'power') history.push(`/power?pduId=${record.id}`);
+              if (key === 'delete') remove(record);
+            },
           }}
         >
-          编辑
-        </Button>,
-        <Popconfirm
-          key="delete"
-          title="确定要删除这个PDU吗？"
-          onConfirm={async () => {
-            const res = await deletePDUDevice(record.id);
-            if (res.success) {
-              message.success('PDU已删除');
-              actionRef.current?.reload();
-            }
-          }}
-        >
-          <Button type="link" size="small" danger icon={<Trash2 size={14} />}>
-            删除
-          </Button>
-        </Popconfirm>,
+          <Button
+            type="text"
+            size="small"
+            aria-label={`${record.name} 更多操作`}
+            icon={<Ellipsis size={16} />}
+          />
+        </Dropdown>,
       ],
     },
   ];
+
+  const submitForm = async (values: PDUFormValues) => {
+    const data: Partial<PDUDevice> = {
+      name: values.name,
+      cabinetId: values.cabinetId,
+      startU: values.startU,
+      endU: values.startU + 1,
+      uHeight: 2,
+      assetCode: values.assetCode ?? `PDU-${Date.now()}`,
+      managementIp: values.managementIp,
+      status: values.status ?? 'online',
+      category: 'pdu',
+      pduData: {
+        powerPath: values.powerPath,
+        inputVoltage: 220,
+        inputCurrent: current?.pduData.inputCurrent ?? 0,
+        phase: values.phase,
+        outputPorts: values.outputPorts,
+        maxLoad: values.maxLoad,
+        currentLoad: values.currentLoad ?? 0,
+        peakLoad: current?.pduData.peakLoad ?? 0,
+        loadThreshold: values.loadThreshold,
+        brand: values.brand ?? current?.pduData.brand,
+        model: values.model ?? current?.pduData.model,
+      },
+    };
+    const result =
+      formMode === 'edit' && current
+        ? await updatePDUDevice(current.id, data)
+        : await createPDUDevice(data);
+    if (!result.success) return false;
+    message.success(
+      formMode === 'edit' ? 'PDU 已更新' : 'PDU 已创建，插座已按模板生成',
+    );
+    await reload();
+    return true;
+  };
 
   return (
     <PageContainer
       header={{
         title: intl.formatMessage({
           id: 'pages.power.pdu',
-          defaultMessage: 'PDU设备管理',
+          defaultMessage: 'PDU 设备管理',
         }),
-        subTitle: '管理配电单元(PDU)设备',
+        subTitle: '查看 A/B 路容量、插座关系、采集质量与负载趋势',
       }}
     >
-      {/* 统计卡片 */}
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="PDU总数"
-              value={pduStats.total}
-              prefix={<Zap size={16} style={{ color: '#1890ff' }} />}
-              suffix="台"
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="A路电源"
-              value={pduStats.pathA}
-              valueStyle={{ color: '#1890ff' }}
-              prefix={<Tag color="blue">A</Tag>}
-              suffix="台"
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="B路电源"
-              value={pduStats.pathB}
-              valueStyle={{ color: '#52c41a' }}
-              prefix={<Tag color="green">B</Tag>}
-              suffix="台"
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="高负载PDU"
-              value={pduStats.highLoad}
-              valueStyle={{
-                color: pduStats.highLoad > 0 ? '#f5222d' : '#52c41a',
-              }}
-              prefix={<AlertTriangle size={16} />}
-              suffix="台"
-            />
-          </Card>
-        </Col>
-      </Row>
-
+      <PDUMetricStrip stats={stats} />
       <ProTable<PDUDevice>
-        headerTitle="PDU设备列表"
+        headerTitle="PDU 与配电风险"
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1180 }}
         request={async (params) => {
-          const res = await getPDUDevices({
+          const result = await getPDUDevices({
             cabinetId: params.cabinetId,
             powerPath: params['pduData,powerPath'],
+            status: params.status,
+            risk: params.risk,
+            keyword: params.keyword,
           });
-          if (res.success && res.data) {
-            updateStats(res.data);
-          }
           return {
-            data: res.data || [],
-            success: res.success,
-            total: res.total || 0,
+            data: result.data ?? [],
+            success: result.success,
+            total: result.total ?? 0,
           };
         }}
         toolBarRender={() => [
@@ -380,240 +344,34 @@ const PDUPage: React.FC = () => {
             key="create"
             type="primary"
             icon={<Plus size={16} />}
-            onClick={() => setCreateModalOpen(true)}
+            onClick={() => {
+              setCurrent(undefined);
+              setFormMode('create');
+              setFormOpen(true);
+            }}
           >
-            添加PDU
+            添加 PDU
           </Button>,
         ]}
       />
-
-      {/* 创建PDU模态框 */}
-      <ModalForm
-        title="添加PDU设备"
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-        width={600}
-        onFinish={async (values) => {
-          const res = await createPDUDevice({
-            ...values,
-            category: 'pdu',
-            pduData: {
-              powerPath: values.powerPath,
-              inputVoltage: values.inputVoltage || 220,
-              outputPorts: values.outputPorts || 8,
-              maxLoad: values.maxLoad || 3000,
-              currentLoad: 0,
-            },
-          });
-          if (res.success) {
-            message.success('PDU添加成功');
-            actionRef.current?.reload();
-            return true;
-          }
-          return false;
+      <PDUFormModal
+        open={formOpen}
+        mode={formMode}
+        current={current}
+        templates={templates}
+        cabinets={cabinets}
+        onOpenChange={setFormOpen}
+        onFinish={submitForm}
+      />
+      <PDUDetailDrawer
+        open={detailOpen}
+        device={current}
+        cabinet={current ? cabinetMap.get(current.cabinetId) : undefined}
+        onClose={() => {
+          setDetailOpen(false);
+          history.replace(history.location.pathname);
         }}
-      >
-        <ProFormText
-          name="name"
-          label="PDU名称"
-          placeholder="如：PDU-A-01"
-          rules={[{ required: true, message: '请输入PDU名称' }]}
-        />
-        <ProFormSelect
-          name="powerPath"
-          label="电源路径"
-          options={[
-            { value: 'A', label: 'A路电源 (主路)' },
-            { value: 'B', label: 'B路电源 (备路)' },
-          ]}
-          rules={[{ required: true, message: '请选择电源路径' }]}
-        />
-        <ProFormSelect
-          name="cabinetId"
-          label="所在机柜"
-          options={cabinets.map((c) => ({ value: c.id, label: c.name }))}
-          showSearch
-          rules={[{ required: true, message: '请选择机柜' }]}
-        />
-        <ProFormDigit
-          name="startU"
-          label="起始U位"
-          min={1}
-          max={42}
-          rules={[{ required: true }]}
-        />
-        <ProFormDigit
-          name="outputPorts"
-          label="输出端口数"
-          min={4}
-          max={48}
-          initialValue={16}
-        />
-        <ProFormDigit
-          name="maxLoad"
-          label="最大负载(W)"
-          min={1000}
-          max={10000}
-          initialValue={3000}
-        />
-        <ProFormText
-          name="managementIp"
-          label="管理IP"
-          placeholder="如：192.168.1.100"
-        />
-        <ProFormText
-          name="assetCode"
-          label="资产编码"
-          placeholder="如：PDU-2024-001"
-        />
-      </ModalForm>
-
-      {/* 编辑PDU模态框 */}
-      <ModalForm
-        title="编辑PDU设备"
-        open={editModalOpen}
-        onOpenChange={setEditModalOpen}
-        key={currentRow?.id}
-        width={600}
-        initialValues={{
-          ...currentRow,
-          powerPath: currentRow?.pduData?.powerPath,
-          outputPorts: currentRow?.pduData?.outputPorts,
-          maxLoad: currentRow?.pduData?.maxLoad,
-          currentLoad: currentRow?.pduData?.currentLoad,
-        }}
-        onFinish={async (values) => {
-          if (!currentRow) return false;
-          const res = await updatePDUDevice(currentRow.id, {
-            ...values,
-            pduData: {
-              ...currentRow.pduData,
-              powerPath: values.powerPath,
-              outputPorts: values.outputPorts,
-              maxLoad: values.maxLoad,
-              currentLoad: values.currentLoad,
-            },
-          });
-          if (res.success) {
-            message.success('PDU更新成功');
-            actionRef.current?.reload();
-            return true;
-          }
-          return false;
-        }}
-      >
-        <ProFormText name="name" label="PDU名称" rules={[{ required: true }]} />
-        <ProFormSelect
-          name="powerPath"
-          label="电源路径"
-          options={[
-            { value: 'A', label: 'A路电源 (主路)' },
-            { value: 'B', label: 'B路电源 (备路)' },
-          ]}
-        />
-        <ProFormSelect
-          name="status"
-          label="状态"
-          options={[
-            { value: 'online', label: '在线' },
-            { value: 'offline', label: '离线' },
-            { value: 'warning', label: '告警' },
-            { value: 'error', label: '故障' },
-          ]}
-        />
-        <ProFormDigit name="currentLoad" label="当前负载(W)" min={0} />
-        <ProFormDigit
-          name="maxLoad"
-          label="最大负载(W)"
-          min={1000}
-          max={10000}
-        />
-        <ProFormText name="managementIp" label="管理IP" />
-      </ModalForm>
-
-      {/* 详情抽屉 */}
-      <Drawer
-        title="PDU设备详情"
-        open={detailDrawerOpen}
-        onClose={() => setDetailDrawerOpen(false)}
-        width={500}
-      >
-        {currentRow && (
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="PDU名称">
-              <Space>
-                <Badge
-                  status={
-                    currentRow.status === 'online' ? 'success' : 'default'
-                  }
-                />
-                {currentRow.name}
-              </Space>
-            </Descriptions.Item>
-            <Descriptions.Item label="电源路径">
-              <Tag
-                color={currentRow.pduData?.powerPath === 'A' ? 'blue' : 'green'}
-              >
-                {currentRow.pduData?.powerPath === 'A'
-                  ? 'A路电源 (主路)'
-                  : 'B路电源 (备路)'}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="所在机柜">
-              {cabinets.find((c) => c.id === currentRow.cabinetId)?.name ||
-                currentRow.cabinetId}
-            </Descriptions.Item>
-            <Descriptions.Item label="U位">
-              U{currentRow.startU} - U{currentRow.endU}
-            </Descriptions.Item>
-            <Descriptions.Item label="输出端口数">
-              {currentRow.pduData?.outputPorts} 口
-            </Descriptions.Item>
-            <Descriptions.Item label="输入电压">
-              {currentRow.pduData?.inputVoltage}V
-            </Descriptions.Item>
-            <Descriptions.Item label="负载情况">
-              <Progress
-                percent={Math.round(
-                  ((currentRow.pduData?.currentLoad || 0) /
-                    (currentRow.pduData?.maxLoad || 1)) *
-                    100,
-                )}
-                strokeColor={getLoadColor(
-                  Math.round(
-                    ((currentRow.pduData?.currentLoad || 0) /
-                      (currentRow.pduData?.maxLoad || 1)) *
-                      100,
-                  ),
-                )}
-                format={() =>
-                  `${currentRow.pduData?.currentLoad}W / ${currentRow.pduData?.maxLoad}W`
-                }
-              />
-            </Descriptions.Item>
-            <Descriptions.Item label="状态">
-              <Tag color={statusConfig[currentRow.status]?.color}>
-                {statusConfig[currentRow.status]?.text}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="管理IP">
-              {currentRow.managementIp || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="资产编码">
-              {currentRow.assetCode || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="品牌型号">
-              {currentRow.pduData?.brand} {currentRow.pduData?.model}
-            </Descriptions.Item>
-            <Descriptions.Item label="创建时间">
-              {currentRow.createdAt || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="更新时间">
-              {currentRow.updatedAt || '-'}
-            </Descriptions.Item>
-          </Descriptions>
-        )}
-      </Drawer>
+      />
     </PageContainer>
   );
 };

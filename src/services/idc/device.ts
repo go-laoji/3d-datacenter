@@ -3,6 +3,8 @@ import { request } from '@umijs/max';
 /** 获取设备列表 */
 export async function getDevices(
     params?: IDC.PageParams & {
+        id?: string;
+        datacenterId?: string;
         cabinetId?: string;
         templateId?: string;
         name?: string;
@@ -11,6 +13,7 @@ export async function getDevices(
         managementIp?: string;
         department?: string;
         isMounted?: string; // "true" / "false" / ""
+        lifecycleStatus?: IDC.DeviceLifecycleStatus;
     },
 ) {
     return request<IDC.PageResult<IDC.Device>>('/api/idc/devices', {
@@ -67,6 +70,20 @@ export async function batchUpdateDeviceStatus(ids: string[], status: IDC.Device[
     });
 }
 
+/** 批量变更资产生命周期 */
+export async function batchUpdateDeviceLifecycle(
+    ids: string[],
+    lifecycleStatus: IDC.DeviceLifecycleStatus,
+) {
+    return request<IDC.ApiResponse<{ updatedCount: number }>>(
+        '/api/idc/devices/batch-lifecycle',
+        {
+            method: 'POST',
+            data: { ids, lifecycleStatus },
+        },
+    );
+}
+
 /** 获取设备统计 */
 export async function getDeviceStats() {
     return request<IDC.ApiResponse<{
@@ -84,9 +101,17 @@ export async function getDeviceStats() {
 }
 
 /** 设备下架（保留数据） */
-export async function unmountDevice(id: string) {
+export async function getDeviceUnmountImpact(id: string) {
+    return request<IDC.ApiResponse<IDC.DeviceUnmountImpact>>(
+        `/api/idc/devices/${id}/unmount-impact`,
+        { method: 'GET' },
+    );
+}
+
+export async function unmountDevice(id: string, confirmDependencies = false) {
     return request<IDC.ApiResponse>(`/api/idc/devices/${id}/unmount`, {
         method: 'POST',
+        data: { confirmDependencies },
     });
 }
 

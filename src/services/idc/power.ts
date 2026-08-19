@@ -1,77 +1,97 @@
 import { request } from '@umijs/max';
 
-// 电源拓扑节点
+export type PowerMetricQuality = 'good' | 'delayed' | 'estimated' | 'invalid';
+
 export interface PowerNode {
-    id: string;
-    type: 'utility' | 'ups' | 'pdu' | 'device';
-    name: string;
-    status: 'online' | 'offline' | 'warning';
-    load?: number;
-    capacity?: number;
+  id: string;
+  type: 'utility' | 'ups' | 'pdu' | 'device';
+  name: string;
+  status: 'online' | 'offline' | 'warning';
+  load?: number;
+  capacity?: number;
+  datacenterId?: string;
+  cabinetId?: string;
+  assetCode?: string;
+  ratedPower?: number;
+  source: string;
+  collectedAt: string;
+  quality: PowerMetricQuality;
 }
 
-// 电源链路
 export interface PowerLink {
-    id: string;
-    source: string;
-    target: string;
-    powerPath: 'A' | 'B';
-    status: 'active' | 'inactive' | 'fault';
+  id: string;
+  source: string;
+  target: string;
+  powerPath: 'A' | 'B';
+  status: 'active' | 'inactive' | 'fault';
+  sourcePort: string;
+  targetPort: string;
+  ratedCurrent: number;
+  collectedAt: string;
 }
 
-// 冗余状态
 export interface RedundancyStatus {
-    dualPower: Array<PowerNode & { powerPaths: string[] }>;
-    singlePower: Array<PowerNode & { powerPaths: string[]; risk: string }>;
-    summary: {
-        totalDevices: number;
-        dualPowerCount: number;
-        singlePowerCount: number;
-        redundancyRate: string;
-    };
+  dualPower: Array<PowerNode & { powerPaths: string[] }>;
+  singlePower: Array<PowerNode & { powerPaths: string[]; risk: string }>;
+  summary: {
+    totalDevices: number;
+    dualPowerCount: number;
+    singlePowerCount: number;
+    redundancyRate: string;
+  };
 }
 
-// 负载均衡状态
 export interface LoadBalanceStatus {
-    pathA: { load: number; percentage: string };
-    pathB: { load: number; percentage: string };
-    totalLoad: number;
-    balanceRate: string;
-    status: 'balanced' | 'warning' | 'unbalanced';
+  pathA: { load: number; percentage: string; capacity: number };
+  pathB: { load: number; percentage: string; capacity: number };
+  totalLoad: number;
+  balanceRate: string;
+  status: 'balanced' | 'warning' | 'unbalanced';
+  source: string;
+  collectedAt: string;
 }
 
-// 获取电源拓扑
+export interface PowerFailureSimulation {
+  failedNodeId: string;
+  failedNodeName: string;
+  affectedDeviceIds: string[];
+  transferredDeviceIds: string[];
+  offlineDeviceIds: string[];
+  impactedLoad: number;
+  predictedPathA: number;
+  predictedPathB: number;
+  overloadedNodeIds: string[];
+  severity: 'low' | 'medium' | 'high';
+  explanation: string;
+}
+
 export async function getPowerTopology(datacenterId?: string) {
-    return request<{
-        success: boolean;
-        data: {
-            nodes: PowerNode[];
-            links: PowerLink[];
-        };
-    }>('/api/power/topology', {
-        method: 'GET',
-        params: { datacenterId },
-    });
+  return request<IDC.ApiResponse<{ nodes: PowerNode[]; links: PowerLink[] }>>(
+    '/api/power/topology',
+    { method: 'GET', params: { datacenterId } },
+  );
 }
 
-// 获取电源冗余状态
 export async function getPowerRedundancy(datacenterId?: string) {
-    return request<{
-        success: boolean;
-        data: RedundancyStatus;
-    }>('/api/power/redundancy', {
-        method: 'GET',
-        params: { datacenterId },
-    });
+  return request<IDC.ApiResponse<RedundancyStatus>>('/api/power/redundancy', {
+    method: 'GET',
+    params: { datacenterId },
+  });
 }
 
-// 获取负载均衡状态
 export async function getPowerLoadBalance(datacenterId?: string) {
-    return request<{
-        success: boolean;
-        data: LoadBalanceStatus;
-    }>('/api/power/load-balance', {
-        method: 'GET',
-        params: { datacenterId },
-    });
+  return request<IDC.ApiResponse<LoadBalanceStatus>>(
+    '/api/power/load-balance',
+    { method: 'GET', params: { datacenterId } },
+  );
+}
+
+export async function simulatePowerFailure(
+  datacenterId: string,
+  nodeId: string,
+) {
+  return request<IDC.ApiResponse<PowerFailureSimulation>>(
+    '/api/power/simulate',
+    { method: 'POST', data: { datacenterId, nodeId } },
+  );
 }

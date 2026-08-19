@@ -13,6 +13,7 @@ export async function saveDatacenterLayout(
   datacenterId: string,
   data: Omit<IDC.DatacenterLayout, 'datacenterId' | 'updatedAt' | 'version'> & {
     version?: number;
+    force?: boolean;
   },
 ) {
   return request<IDC.ApiResponse<IDC.DatacenterLayout>>(
@@ -20,7 +21,7 @@ export async function saveDatacenterLayout(
     {
       method: 'PUT',
       data,
+      skipErrorHandler: true,
     },
   );
 }
-

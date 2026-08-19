@@ -1,99 +1,150 @@
+.contextNotice,
+.toolbar,
+.metricStrip {
+  margin-bottom: 12px;
+}
+
+.metricItem {
+  display: flex;
+  min-height: 76px;
+  padding: 6px 16px;
+  border-right: 1px solid #f0f0f0;
+  flex-direction: column;
+
+  strong {
+    font-size: 22px;
+    line-height: 32px;
+  }
+}
+
+.loading {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
+}
+
+.topologyCard,
+.redundancyCard {
+  margin-top: 12px;
+}
+
 .powerTopologyContainer {
   width: 100%;
 }
 
 .legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
   background: #fafafa;
   border-radius: 6px;
 }
 
-.legendSection {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.legendTitle {
-  color: #8c8c8c;
-  font-size: 13px;
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #262626;
-}
-
-.legendColor {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-}
-
-.legendNode {
-  display: inline-block;
-  width: 16px;
-  height: 12px;
-  border-radius: 3px;
-  border: 2px solid;
-  background-color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.legendLine {
-  display: inline-block;
-  width: 20px;
-  height: 3px;
-  border-radius: 2px;
-}
-
-.graphWrapper {
-  position: relative;
-  min-height: 500px;
+.powerLayers {
+  padding: 16px;
+  overflow-x: auto;
+  background: linear-gradient(#fafcff, #fff);
   border: 1px solid #f0f0f0;
-  border-radius: 6px;
-  overflow: hidden;
+  border-radius: 8px;
 }
 
-.graphContainer {
-  width: 100%;
-  height: 500px;
-  transition: opacity 0.3s ease;
+.powerLayer {
+  position: relative;
+  min-width: 720px;
+  padding-bottom: 26px;
 }
 
-.loadingWrapper {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+.layerLabel {
   display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #595959;
+  font-weight: 600;
+  gap: 6px;
+}
+
+.layerNodes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.powerNode {
+  display: flex;
+  min-height: 82px;
+  padding: 10px 12px;
+  color: inherit;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-left: 4px solid #1677ff;
+  border-radius: 7px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 4%);
+  cursor: pointer;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+  gap: 4px;
+
+  &:focus-visible {
+    outline: 2px solid #1677ff;
+    outline-offset: 2px;
+  }
 }
 
-/* 统计概览卡片样式 */
-.statsRow {
-  margin-bottom: 24px;
+.selectedNode {
+  background: #e6f4ff;
+  border-color: #1677ff;
 }
 
-/* 机房选择器样式 */
-.datacenterSelector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
+.warningNode {
+  border-left-color: #faad14;
 }
 
-.datacenterSelector :global(.ant-select) {
-  min-width: 250px;
+.nodeTitle {
+  font-weight: 600;
+}
+
+.layerArrow {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  color: #8c8c8c;
+}
+
+.linkLedger {
+  margin-top: 14px;
+}
+
+.linkList {
+  display: grid;
+  max-height: 210px;
+  overflow: auto;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 6px;
+
+  button {
+    display: flex;
+    align-items: center;
+    padding: 7px;
+    text-align: left;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    border-radius: 5px;
+    cursor: pointer;
+    gap: 4px;
+  }
+}
+
+.entityButton {
+  height: auto;
+  padding: 0;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .metricItem {
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .toolbar :global(.ant-space) {
+    width: 100%;
+  }
 }

@@ -1,5 +1,8 @@
 import type { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import type { ConnectionImportRow, ConnectionView } from '../src/services/idc/connection';
+import { validateConnectionSelection } from '../src/pages/Connection/connectionRules';
+import { devicesData } from './device.mock';
 
 // Mock 连线数据
 let connections: IDC.Connection[] = [
@@ -171,12 +174,45 @@ let connections: IDC.Connection[] = [
     },
 ];
 
+export const connectionsData = connections;
+
 const waitTime = (time: number = 100) => {
     return new Promise((resolve) => {
         setTimeout(() => {
             resolve(true);
         }, time);
     });
+};
+
+const portLabel = (portId: string) =>
+    portId.replace(/^port-(dev-)?\d+-/, '').replaceAll('-', '/').toUpperCase();
+
+const getDevice = (id: string) => devicesData.find(device => device.id === id);
+
+const enrichConnection = (connection: IDC.Connection): ConnectionView => {
+    const source = getDevice(connection.sourceDeviceId);
+    const target = getDevice(connection.targetDeviceId);
+    const speed = connection.cableType.includes('Fiber') ? '10G' : connection.cableType === 'PowerCable' ? 'N/A' : '1G';
+    return {
+        ...connection,
+        sourceDeviceName: source?.name ?? connection.sourceDeviceId,
+        sourceDeviceLocation: `${source?.cabinetId ?? '未定位'} · U${source?.startU ?? '-'}`,
+        sourcePortName: portLabel(connection.sourcePortId),
+        sourcePortSpeed: speed,
+        targetDeviceName: target?.name ?? connection.targetDeviceId,
+        targetDeviceLocation: `${target?.cabinetId ?? '未定位'} · U${target?.startU ?? '-'}`,
+        targetPortName: portLabel(connection.targetPortId),
+        targetPortSpeed: speed,
+        impact: connection.connectionType === 'storage'
+            ? ['数据库存储访问', '夜间备份任务']
+            : connection.connectionType === 'management'
+                ? ['带外管理通道']
+                : ['设备间网络通信', connection.description ?? '未登记业务'],
+        history: [
+            { id: `${connection.id}-2`, action: '链路巡检', operator: '系统采集器', occurredAt: '2026-08-20 09:58:12', detail: '链路状态与协商速率正常' },
+            { id: `${connection.id}-1`, action: '创建连接', operator: '张运维', occurredAt: connection.createdAt, detail: connection.description ?? '物理连线登记' },
+        ],
+    };
 };
 
 export default {
@@ -192,6 +228,8 @@ export default {
             targetDeviceId,
             status,
             cableNumber,
+            deviceId,
+            keyword,
         } = req.query;
 
         let filteredData = [...connections];
@@ -214,6 +252,14 @@ export default {
         if (cableNumber) {
             filteredData = filteredData.filter(c => c.cableNumber.includes(cableNumber as string));
         }
+        if (deviceId) filteredData = filteredData.filter(c => c.sourceDeviceId === deviceId || c.targetDeviceId === deviceId);
+        if (keyword) {
+            const query = String(keyword).toLowerCase();
+            filteredData = filteredData.filter(c => {
+                const view = enrichConnection(c);
+                return `${view.cableNumber} ${view.sourceDeviceName} ${view.targetDeviceName} ${view.description}`.toLowerCase().includes(query);
+            });
+        }
 
         const start = (Number(current) - 1) * Number(pageSize);
         const end = start + Number(pageSize);
@@ -221,7 +267,7 @@ export default {
 
         res.json({
             success: true,
-            data: paginatedData,
+            data: paginatedData.map(enrichConnection),
             total: filteredData.length,
             current: Number(current),
             pageSize: Number(pageSize),
@@ -235,10 +281,57 @@ export default {
         const connection = connections.find(c => c.id === id);
 
         if (connection) {
-            res.json({ success: true, data: connection });
+            res.json({ success: true, data: enrichConnection(connection) });
         } else {
             res.status(404).json({ success: false, errorMessage: '连线不存在' });
         }
+    },
+
+    'POST /api/idc/connections/validate': async (req: Request, res: Response) => {
+        await waitTime(220);
+        const body = req.body as IDC.ConnectionCreateParams;
+        const occupiedPorts = new Set(connections.flatMap(connection => [connection.sourcePortId, connection.targetPortId]));
+        res.json({ success: true, data: validateConnectionSelection(body, occupiedPorts) });
+    },
+
+    'POST /api/idc/connections/import-preview': async (req: Request, res: Response) => {
+        await waitTime(350);
+        const lines = String(req.body?.content ?? '').split(/\r?\n/).map((line: string) => line.trim()).filter(Boolean);
+        const rows: ConnectionImportRow[] = lines.slice(1).map((line: string, index: number) => {
+            const [cableNumber = '', sourceDevice = '', sourcePort = '', targetDevice = '', targetPort = ''] = line.split(',').map(value => value.trim());
+            const duplicate = connections.some(connection => connection.cableNumber === cableNumber);
+            const missing = !cableNumber || !sourceDevice || !sourcePort || !targetDevice || !targetPort;
+            return {
+                row: index + 2,
+                cableNumber: cableNumber || '(空)',
+                source: `${sourceDevice}/${sourcePort}`,
+                target: `${targetDevice}/${targetPort}`,
+                status: missing ? 'invalid' : duplicate ? 'conflict' : 'ready',
+                message: missing ? '缺少必填列' : duplicate ? '线缆编号已存在' : '校验通过，可创建',
+            };
+        });
+        res.json({ success: true, data: { rows, ready: rows.filter(row => row.status === 'ready').length, conflicts: rows.filter(row => row.status !== 'ready').length } });
+    },
+
+    'POST /api/idc/connections/import-apply': async (req: Request, res: Response) => {
+        await waitTime(500);
+        const rows = (req.body?.rows ?? []) as ConnectionImportRow[];
+        const ready = rows.filter(row => row.status === 'ready');
+        ready.forEach(row => connections.push({
+            id: `conn-${uuidv4().slice(0, 8)}`,
+            cableNumber: row.cableNumber,
+            connectionType: 'network',
+            cableType: 'Cat6a',
+            sourceDeviceId: row.source.split('/')[0],
+            sourcePortId: row.source.split('/').slice(1).join('/'),
+            targetDeviceId: row.target.split('/')[0],
+            targetPortId: row.target.split('/').slice(1).join('/'),
+            status: 'active',
+            description: '通过导入任务创建',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        }));
+        res.json({ success: true, data: { created: ready.length, skipped: rows.length - ready.length } });
     },
 
     // 创建连线

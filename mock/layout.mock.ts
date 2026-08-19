@@ -35,10 +35,20 @@ export default {
     const { id } = req.params;
     const body = req.body as Partial<IDC.DatacenterLayout>;
     const prev = store[id] ?? defaultLayout(id);
+    const force = Boolean((body as Partial<IDC.DatacenterLayout> & { force?: boolean }).force);
+    if (!force && body.version !== undefined && body.version !== prev.version) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'LAYOUT_VERSION_CONFLICT',
+        errorMessage: `布局版本已从 v${body.version} 更新为 v${prev.version}`,
+        data: prev,
+      });
+      return;
+    }
     const next: IDC.DatacenterLayout = {
       ...prev,
       datacenterId: id,
-      version: (body.version ?? prev.version) + 1,
+      version: prev.version + 1,
       canvasWidth: body.canvasWidth ?? prev.canvasWidth,
       canvasHeight: body.canvasHeight ?? prev.canvasHeight,
       pxPerMeter: body.pxPerMeter ?? prev.pxPerMeter,
@@ -51,4 +61,3 @@ export default {
     res.json({ success: true, data: next });
   },
 };
-

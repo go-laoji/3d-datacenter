@@ -90,15 +90,16 @@ const CabinetFrame3D: React.FC<CabinetFrame3DProps> = ({
       })}
 
       {/* U位分割线 */}
-      {Array.from({ length: uHeight + 1 }, (_, i) => {
-        const y = i * U_HEIGHT;
-        return (
-          <mesh key={`line-${i}`} position={[0, y, depth / 2 + 0.001]}>
-            <boxGeometry args={[width, 0.001, 0.001]} />
-            <meshBasicMaterial color="#aab5c0" transparent opacity={0.6} />
-          </mesh>
-        );
-      })}
+      {Array.from({ length: uHeight + 1 }, (_, unit) => unit * U_HEIGHT).map(
+        (y) => {
+          return (
+            <mesh key={`line-${y}`} position={[0, y, depth / 2 + 0.001]}>
+              <boxGeometry args={[width, 0.001, 0.001]} />
+              <meshBasicMaterial color="#aab5c0" transparent opacity={0.6} />
+            </mesh>
+          );
+        },
+      )}
     </group>
   );
 };
@@ -217,9 +218,9 @@ const CabinetScene3D: React.FC<CabinetScene3DProps> = ({
       />
 
       {/* 空槽位 */}
-      {emptySlots.map((slot, idx) => (
+      {emptySlots.map((slot) => (
         <EmptySlot3D
-          key={`empty-${idx}`}
+          key={`empty-${slot.startU}-${slot.endU}`}
           startU={slot.startU}
           endU={slot.endU}
           width={cabinetWidth}

@@ -1,11 +1,34 @@
 import { request } from '@umijs/max';
 
+export interface PortHistoryItem {
+    id: string;
+    action: string;
+    operator: string;
+    occurredAt: string;
+    detail: string;
+}
+
+export interface PortView extends IDC.Port {
+    connectedDeviceName?: string;
+    connectedPortName?: string;
+    connectionId?: string;
+    learnedMacs: string[];
+    lastChangedAt: string;
+    history: PortHistoryItem[];
+}
+
+export interface PortBatchResult {
+    portId: string;
+    success: boolean;
+    message: string;
+}
+
 /** 获取设备的端口列表 */
 export async function getPortsByDevice(
     deviceId: string,
     params?: { portType?: string; status?: string; linkStatus?: string },
 ) {
-    return request<IDC.ApiResponse<IDC.Port[]> & { total: number }>(
+    return request<IDC.ApiResponse<PortView[]> & { total: number }>(
         `/api/idc/ports/by-device/${deviceId}`,
         {
             method: 'GET',
@@ -16,7 +39,7 @@ export async function getPortsByDevice(
 
 /** 获取单个端口 */
 export async function getPort(id: string) {
-    return request<IDC.ApiResponse<IDC.Port>>(`/api/idc/ports/${id}`, {
+    return request<IDC.ApiResponse<PortView>>(`/api/idc/ports/${id}`, {
         method: 'GET',
     });
 }
@@ -39,7 +62,7 @@ export async function batchUpdatePortVlan(portIds: string[], vlanConfig: IDC.Vla
 
 /** 批量更新端口状态 */
 export async function batchUpdatePortStatus(portIds: string[], status: IDC.Port['status']) {
-    return request<IDC.ApiResponse>('/api/idc/ports/batch-status', {
+    return request<IDC.ApiResponse<{ results: PortBatchResult[] }>>('/api/idc/ports/batch-status', {
         method: 'POST',
         data: { portIds, status },
     });

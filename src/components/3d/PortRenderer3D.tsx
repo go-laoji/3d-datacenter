@@ -314,15 +314,11 @@ export const RearPortPanel: React.FC<DevicePortPanelProps> = ({
       </mesh>
 
       {/* 散热栅格 */}
-      {Array.from({ length: Math.floor(width / 0.03) }, (_, i) => (
-        <mesh
-          key={`vent-${i}`}
-          position={[
-            -width / 2 + 0.02 + i * 0.025,
-            -height / 4,
-            -depth / 2 - 0.002,
-          ]}
-        >
+      {Array.from(
+        { length: Math.floor(width / 0.03) },
+        (_, vent) => -width / 2 + 0.02 + vent * 0.025,
+      ).map((x) => (
+        <mesh key={`vent-${x}`} position={[x, -height / 4, -depth / 2 - 0.002]}>
           <boxGeometry args={[0.015, height * 0.3, 0.001]} />
           <meshStandardMaterial color="#0a0a0a" />
         </mesh>
@@ -394,17 +390,20 @@ export const RearPortPanel: React.FC<DevicePortPanelProps> = ({
       {/* 端口组渲染 */}
       {layout
         .filter((item) => 'group' in item)
-        .map(({ group, position }) => (
-          <PortGroupRenderer
-            key={group?.id}
-            ports={ports}
-            portGroup={group!}
-            startPosition={position}
-            direction="horizontal"
-            scale={scale}
-            isRear={true}
-          />
-        ))}
+        .map(({ group, position }) => {
+          if (!group) return null;
+          return (
+            <PortGroupRenderer
+              key={group.id}
+              ports={ports}
+              portGroup={group}
+              startPosition={position}
+              direction="horizontal"
+              scale={scale}
+              isRear={true}
+            />
+          );
+        })}
     </group>
   );
 };
